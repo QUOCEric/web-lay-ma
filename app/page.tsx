@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hvyqjmesurfhzrabwgin.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_-dl_DryxhLjl30kDjMl1nw_H-myWvX6';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
   const [type, setType] = useState('dien');
