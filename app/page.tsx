@@ -1,4 +1,4 @@
-'use client';
+  'use client';
 
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -6,14 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hvyqjmesurfhzrabwgin.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_-dl_DryxhLjl30kDjMl1nw_H-myWvX6';
 
-// Tạo hàm khởi tạo an toàn
-const getSupabaseClient = () => {
-  return createClient(supabaseUrl, supabaseAnonKey);
-};
-
-const supabase = getSupabaseClient();
-
 export default function Home() {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const [type, setType] = useState('dien');
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -23,7 +17,6 @@ export default function Home() {
     setLoading(true);
     setError('');
     setBill(null);
-
     const { data, error: fetchError } = await supabase
       .from('bills')
       .select('*')
