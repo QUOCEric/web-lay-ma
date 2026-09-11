@@ -6,7 +6,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hvyqjmesurfhzrabwgin.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_-dl_DryxhLjl30kDjMl1nw_H-myWvX6';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Tạo hàm khởi tạo an toàn
+const getSupabaseClient = () => {
+  return createClient(supabaseUrl, supabaseAnonKey);
+};
+
+const supabase = getSupabaseClient();
 
 export default function Home() {
   const [type, setType] = useState('dien');
