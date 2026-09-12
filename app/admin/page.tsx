@@ -220,6 +220,11 @@ export default function AdminPage() {
     }
   };
 
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    alert(`Đã copy mã: ${code}`);
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPassword.trim()) return;
@@ -289,7 +294,10 @@ export default function AdminPage() {
             ) : (
               historyList.map((item) => (
                 <div key={item.id} style={{ border: '1px solid #ddd', padding: '12px', borderRadius: '8px', backgroundColor: '#f9fafb' }}>
-                  <div style={{ fontWeight: 'bold', color: '#111827' }}>Mã: {item.code} ({item.type === 'dien' ? 'Điện' : 'Nước'})</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 'bold', color: '#111827' }}>
+                    <span>Mã: {item.code} ({item.type === 'dien' ? 'Điện' : 'Nước'})</span>
+                    <button onClick={() => handleCopyCode(item.code)} style={{ fontSize: '11px', padding: '2px 6px', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ccc' }}>📋 Copy</button>
+                  </div>
                   <div style={{ fontSize: '12px', color: '#6b7280', margin: '4px 0 8px 0' }}>
                     Thời gian: {new Date(item.created_at).toLocaleString('vi-VN')}
                   </div>
@@ -395,7 +403,7 @@ export default function AdminPage() {
                       </thead>
                       <tbody>
                         {parsedBills.map((b, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid #f9fafb' }}>
                             <td style={{ padding: '6px 12px', color: '#6b7280' }}>{idx + 1}</td>
                             <td style={{ padding: '6px 12px', fontWeight: 'bold' }}>{b.code}</td>
                             <td style={{ padding: '6px 12px' }}>{b.owner_name}</td>
@@ -501,9 +509,18 @@ export default function AdminPage() {
                 >
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
-                        Mã: {bill.code}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#111827' }}>
+                          Mã: {bill.code}
+                        </span>
+                        <button
+                          onClick={() => handleCopyCode(bill.code)}
+                          title="Copy mã đơn"
+                          style={{ padding: '2px 6px', fontSize: '11px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                          📋 Copy
+                        </button>
+                      </div>
                       {isActive && <span style={{ fontSize: '12px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px' }}>Sẵn sàng</span>}
                       {isPending && <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '4px' }}>Đang xử lý</span>}
                       {isUsed && <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>Hoàn tất</span>}

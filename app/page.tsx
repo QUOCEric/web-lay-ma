@@ -32,8 +32,7 @@ export default function HomePage() {
       .select('*')
       .eq('type', billType)
       .eq('status', 'active')
-      .order('id', { ascending: true })
-      .limit(4);
+      .order('id', { ascending: true }); // Đã bỏ limit(4) để hiện thị tất cả các mã active
 
     if (!error && data) {
       setBills(data);
@@ -53,6 +52,11 @@ export default function HomePage() {
       .eq('id', bill.id);
 
     setSelectedBill(bill);
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    alert(`Đã copy mã: ${code}`);
   };
 
   const handleUploadBill = async (e: React.FormEvent) => {
@@ -189,8 +193,15 @@ export default function HomePage() {
                 >
                   <div>
                     <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Mã Đơn</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563eb', marginBottom: '12px' }}>
-                      {bill.code}
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563eb' }}>{bill.code}</span>
+                      <button
+                        onClick={() => handleCopyCode(bill.code)}
+                        title="Copy mã đơn"
+                        style={{ padding: '2px 6px', fontSize: '11px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        📋
+                      </button>
                     </div>
 
                     <div style={{ backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontSize: '13px', textAlign: 'left', marginBottom: '12px' }}>
@@ -242,8 +253,14 @@ export default function HomePage() {
 
           <div style={{ textAlign: 'center', paddingBottom: '16px', marginBottom: '16px', borderBottom: '1px solid #f3f4f6' }}>
             <span style={{ fontSize: '13px', color: '#6b7280', textTransform: 'uppercase' }}>Mã Đơn Đã Chọn</span>
-            <div style={{ fontSize: '28px', fontWeight: '800', color: '#2563eb', margin: '4px 0' }}>
-              {selectedBill.code}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', margin: '4px 0' }}>
+              <span style={{ fontSize: '28px', fontWeight: '800', color: '#2563eb' }}>{selectedBill.code}</span>
+              <button
+                onClick={() => handleCopyCode(selectedBill.code)}
+                style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                📋 Copy
+              </button>
             </div>
 
             {(selectedBill.owner_name || (selectedBill.amount && selectedBill.amount > 0)) && (
