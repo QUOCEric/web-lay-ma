@@ -23,7 +23,6 @@ export default function AdminPage() {
   const [billType, setBillType] = useState<string>('dien');
   const [newCode, setNewCode] = useState<string>('');
 
-  // State đổi mật khẩu
   const [currentPass, setCurrentPass] = useState<string>('');
   const [newPass, setNewPass] = useState<string>('');
   const [confirmPass, setConfirmPass] = useState<string>('');
@@ -44,11 +43,33 @@ export default function AdminPage() {
     const correctPassword = await getAdminPassword();
     if (passwordInput === correctPassword) {
       setIsAuthenticated(true);
-      fetchBills();
     } else {
       alert('Mật khẩu không đúng!');
     }
   };
+
+  const fetchBills = async () => {
+    const { data } = await supabase.from('bills').select('*').order('id', { ascending: false });
+    if (data) setBills(data);
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    fetchBills();
+
+    // Bật Realtime để bên Admin nhảy dữ liệu ngay khi người dùng bấm/gửi ảnh
+    const channel = supabase
+      .channel('admin_realtime_bills')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+        fetchBills();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated]);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,11 +101,6 @@ export default function AdminPage() {
     } else {
       setMsg({ text: 'Lỗi: ' + error.message, isError: true });
     }
-  };
-
-  const fetchBills = async () => {
-    const { data } = await supabase.from('bills').select('*').order('id', { ascending: false });
-    if (data) setBills(data);
   };
 
   const handleAddBill = async (e: React.FormEvent) => {
@@ -137,7 +153,6 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Thanh Chọn Tab giống Người dùng */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
         <button
           onClick={() => setBillType('dien')}
@@ -171,7 +186,6 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Form Thêm Đơn */}
       <form onSubmit={handleAddBill} style={{ display: 'flex', gap: '12px', marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
         <input
           type="text"
@@ -185,7 +199,6 @@ export default function AdminPage() {
         </button>
       </form>
 
-      {/* Danh sách Thẻ (Grid) giống hệt trang Người Dùng */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '40px' }}>
         {filteredBills.map((bill) => {
           const imgUrl = bill.image_url || bill.image;
@@ -217,7 +230,7 @@ export default function AdminPage() {
                 )}
                 {bill.status === 'pending' && (
                   <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: '4px' }}>
-                    Đang xử lý
+                    🔑 Đang xử lý
                   </span>
                 )}
                 {bill.status === 'used' && (
@@ -230,7 +243,7 @@ export default function AdminPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f3f4f6' }}>
                 <div>
                   {imgUrl ? (
-                    <a href={imgUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '13px', fontWeight: '600' }}>
+                    <a href={imgUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '13px', fontWeight: '600', textDecoration: 'underline' }}>
                       🖼️ Xem ảnh CK
                     </a>
                   ) : (
@@ -258,7 +271,6 @@ export default function AdminPage() {
         })}
       </div>
 
-      {/* Đổi Mật Khẩu */}
       <div style={{ maxWidth: '400px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
         <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px' }}>⚙️ Cài Đặt - Đổi Mật Khẩu Admin</h3>
         <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

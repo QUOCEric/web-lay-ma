@@ -17,14 +17,11 @@ interface Bill {
 
 export default function HomePage() {
   const [bills, setBills] = useState<Bill[]>([]);
-  const [billType, setBillType] = useState<string>('dien'); // 'dien' hoac 'nuoc'
+  const [billType, setBillType] = useState<string>('dien');
   const [fileMap, setFileMap] = useState<{ [key: number]: File }>({});
   const [uploadingId, setUploadingId] = useState<number | null>(null);
-  
-  // Lưu danh sách ID các đơn mà người dùng này đã bấm Copy thành công
   const [myClaimedIds, setMyClaimedIds] = useState<number[]>([]);
 
-  // Đọc đơn đã chiếm từ localStorage khi vừa mở web
   useEffect(() => {
     const saved = localStorage.getItem('my_claimed_bills');
     if (saved) {
@@ -36,7 +33,6 @@ export default function HomePage() {
     }
   }, []);
 
-  // Lấy danh sách đơn từ Supabase
   const fetchBills = async () => {
     const { data, error } = await supabase
       .from('bills')
@@ -49,19 +45,14 @@ export default function HomePage() {
     }
   };
 
-  // Đồng bộ Realtime & Fetch lại khi đổi loại bill
   useEffect(() => {
     fetchBills();
 
     const channel = supabase
       .channel('realtime_bills')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'bills' },
-        () => {
-          fetchBills();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+        fetchBills();
+      })
       .subscribe();
 
     return () => {
@@ -69,11 +60,9 @@ export default function HomePage() {
     };
   }, [billType]);
 
-  // Xử lý khi nhấn Copy Mã (Khóa đơn an toàn tuyệt đối)
   const handleCopy = async (bill: Bill) => {
     if (bill.status !== 'active') return;
 
-    // 1. Chỉ đổi sang 'pending' nếu trạng thái trong DB thực sự đang là 'active'
     const { data, error } = await supabase
       .from('bills')
       .update({ status: 'pending' })
@@ -81,13 +70,11 @@ export default function HomePage() {
       .eq('status', 'active')
       .select();
 
-    // 2. Nếu người khác nhanh tay hơn -> Tải lại & chặn lại
     if (error || !data || data.length === 0) {
       fetchBills();
       return;
     }
 
-    // 3. Nếu chiếm thành công -> Lưu ID đơn vào máy Người 1 & Copy mã
     const updatedClaimed = [...myClaimedIds, bill.id];
     setMyClaimedIds(updatedClaimed);
     localStorage.setItem('my_claimed_bills', JSON.stringify(updatedClaimed));
@@ -96,10 +83,12 @@ export default function HomePage() {
     fetchBills();
   };
 
-  // Xử lý Upload ảnh chuyển khoản
   const handleUploadBill = async (billId: number) => {
     const file = fileMap[billId];
-    if (!file) return;
+    if (!file) {
+      alert('Vui lòng chọn ảnh chuyển khoản trước!');
+      return;
+    }
 
     setUploadingId(billId);
 
@@ -111,42 +100,55 @@ export default function HomePage() {
       .from('bill-images')
       .upload(filePath, file);
 
-    if (!uploadError) {
-      const { data: publicUrlData } = supabase.storage
-        .from('bill-images')
-        .getPublicUrl(filePath);
+    if (uploadError) {
+      alert('Lỗi tải ảnh lên: ' + uploadError.message);
+      setUploadingId(null);
+      return;
+    }
 
-      const imageUrl = publicUrlData.publicUrl;
+    const { data: publicUrlData } = supabase.storage
+      .from('bill-images')
+      .getPublicUrl(filePath);
 
-      // Cập nhật trạng thái thành 'used' khi hoàn tất
-      const { error: updateError } = await supabase
-        .from('bills')
-        .update({ status: 'used', image_url: imageUrl })
-        .eq('id', billId);
+    const imageUrl = publicUrlData.publicUrl;
 
-      if (!updateError) {
-        fetchBills();
-      }
+    // Lưu link ảnh vào CẢ 2 CỘT (image_url và image) để đảm bảo đồng bộ 100%
+    const { error: updateError } = await supabase
+      .from('bills')
+      .update({ 
+        status: 'used', 
+        image_url: imageUrl,
+        image: imageUrl 
+      })
+      .eq('id', billId);
+
+    if (!updateError) {
+      alert('Đã tải ảnh lên và hoàn tất!');
+      fetchBills();
+    } else {
+      alert('Lỗi cập nhật hóa đơn: ' + updateError.message);
     }
     setUploadingId(null);
   };
 
   return (
     <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h1 style={{ textAlign: 'center', marginBottom: '20px' }}>Thanh Toán Điện Nước</h1>
+      <h2 style={{ textAlign: 'center', marginBottom: '24px', color: '#333', fontWeight: '500' }}>
+        Thanh Toán Điện Nước
+      </h2>
 
-      {/* Nút chuyển Tab Điện / Nước */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '32px' }}>
         <button
           onClick={() => setBillType('dien')}
           style={{
-            padding: '10px 20px',
-            borderRadius: '6px',
+            padding: '12px 24px',
+            borderRadius: '8px',
             border: 'none',
-            backgroundColor: billType === 'dien' ? '#0070f3' : '#e0e0e0',
-            color: billType === 'dien' ? '#fff' : '#000',
-            cursor: 'pointer',
-            fontWeight: 'bold'
+            backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'dien' ? '#ffffff' : '#374151',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer'
           }}
         >
           ⚡ Hóa Đơn Điện
@@ -154,20 +156,20 @@ export default function HomePage() {
         <button
           onClick={() => setBillType('nuoc')}
           style={{
-            padding: '10px 20px',
-            borderRadius: '6px',
+            padding: '12px 24px',
+            borderRadius: '8px',
             border: 'none',
-            backgroundColor: billType === 'nuoc' ? '#0070f3' : '#e0e0e0',
-            color: billType === 'nuoc' ? '#fff' : '#000',
-            cursor: 'pointer',
-            fontWeight: 'bold'
+            backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'nuoc' ? '#ffffff' : '#374151',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer'
           }}
         >
           💧 Hóa Đơn Nước
         </button>
       </div>
 
-      {/* Danh sách Đơn */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
         {bills.map((bill) => {
           const isActive = bill.status === 'active';
@@ -181,50 +183,51 @@ export default function HomePage() {
               style={{
                 backgroundColor: '#ffffff',
                 borderRadius: '8px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid #e5e7eb',
                 padding: '16px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                gap: '12px',
                 width: 'calc(33.333% - 11px)',
                 minWidth: '280px',
+                minHeight: '130px',
                 boxSizing: 'border-box'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#111827' }}>
                   Mã: {bill.code}
                 </span>
 
-                {/* Badging Trạng thái */}
                 {isActive && (
-                  <span style={{ fontSize: '12px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '3px 8px', borderRadius: '4px' }}>
                     Sẵn sàng
                   </span>
                 )}
                 {isPending && (
-                  <span style={{ fontSize: '12px', color: '#ca8a04', backgroundColor: '#fef9c3', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: '4px' }}>
                     {isMyBill ? '🔑 Bạn đang xử lý' : '🔒 Đã có người giữ'}
                   </span>
                 )}
                 {isUsed && (
-                  <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '4px' }}>
                     Hoàn tất
                   </span>
                 )}
               </div>
 
-              {/* TH 1: Đơn Sẵn sàng -> Hiện nút Copy */}
               {isActive && (
                 <button
                   onClick={() => handleCopy(bill)}
                   style={{
-                    padding: '8px',
-                    backgroundColor: '#0070f3',
-                    color: '#fff',
+                    width: '100%',
+                    padding: '10px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '600',
                     cursor: 'pointer'
                   }}
                 >
@@ -232,7 +235,6 @@ export default function HomePage() {
                 </button>
               )}
 
-              {/* TH 2: Đơn Pending & LÀ CỦA NGƯỜI 1 -> Cho Upload Ảnh */}
               {isPending && isMyBill && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <input
@@ -243,16 +245,20 @@ export default function HomePage() {
                         setFileMap({ ...fileMap, [bill.id]: e.target.files[0] });
                       }
                     }}
+                    style={{ fontSize: '13px' }}
                   />
                   <button
                     onClick={() => handleUploadBill(bill.id)}
                     disabled={uploadingId === bill.id}
                     style={{
-                      padding: '8px',
+                      width: '100%',
+                      padding: '10px',
                       backgroundColor: '#16a34a',
-                      color: '#fff',
+                      color: '#ffffff',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: '600',
                       cursor: 'pointer'
                     }}
                   >
@@ -261,16 +267,14 @@ export default function HomePage() {
                 </div>
               )}
 
-              {/* TH 3: Đơn Pending NƯNG CỦA NGƯỜI KHÁC -> Khóa hoàn toàn */}
               {isPending && !isMyBill && (
-                <div style={{ fontSize: '13px', color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                <div style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
                   🚫 Đơn này đang được người khác xử lý.
                 </div>
               )}
 
-              {/* TH 4: Đơn đã hoàn tất */}
               {isUsed && (
-                <div style={{ fontSize: '12px', color: '#16a34a', textAlign: 'center' }}>
+                <div style={{ fontSize: '13px', color: '#16a34a', textAlign: 'center', padding: '12px 0' }}>
                   ✅ Đã hoàn tất thanh toán
                 </div>
               )}
