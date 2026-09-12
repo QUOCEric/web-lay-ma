@@ -13,6 +13,8 @@ interface Bill {
   status: string;
   image_url?: string;
   type?: string;
+  amount?: number;
+  customer_name?: string;
 }
 
 interface BillHistoryItem {
@@ -33,8 +35,12 @@ export default function AdminPage() {
   const [historyList, setHistoryList] = useState<BillHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
+  // Form thêm đơn hàng mới
   const [newCode, setNewCode] = useState('');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newAmount, setNewAmount] = useState('');
   const [newType, setNewType] = useState('dien');
+
   const [newPassword, setNewPassword] = useState('');
 
   const checkAuth = async () => {
@@ -107,16 +113,27 @@ export default function AdminPage() {
 
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCode.trim()) return;
+    if (!newCode.trim()) {
+      alert('Vui lòng nhập Mã Hóa Đơn!');
+      return;
+    }
 
     const { error } = await supabase.from('bills').insert([
-      { code: newCode.trim(), type: newType, status: 'active' }
+      {
+        code: newCode.trim(),
+        customer_name: newCustomerName.trim(),
+        amount: parseFloat(newAmount) || 0,
+        type: newType,
+        status: 'active'
+      }
     ]);
 
     if (!error) {
       setNewCode('');
+      setNewCustomerName('');
+      setNewAmount('');
       fetchBills();
-      alert('Thêm mã thành công!');
+      alert('Thêm đơn thành công!');
     } else {
       alert('Lỗi thêm mã: ' + error.message);
     }
@@ -128,7 +145,6 @@ export default function AdminPage() {
     if (!error) fetchBills();
   };
 
-  // Nút DUYỆT BILL
   const handleApproveBill = async (id: number) => {
     const { error } = await supabase
       .from('bills')
@@ -143,7 +159,6 @@ export default function AdminPage() {
     }
   };
 
-  // Nút TỪ CHỐI BILL GIẢ -> Xóa ảnh hiện tại và đưa về Sẵn sàng (active)
   const handleRejectBill = async (id: number) => {
     if (!confirm('Xác nhận TỪ CHỐI bill này? Mã sẽ được mở lại trạng thái Sẵn Sàng.')) return;
 
@@ -153,7 +168,7 @@ export default function AdminPage() {
       .eq('id', id);
 
     if (!error) {
-      alert('Đã từ chối bill và mở lại mã! (Ảnh cũ vẫn được lưu trong Bảng Lịch Sử)');
+      alert('Đã từ chối bill và mở lại mã!');
       fetchBills();
     } else {
       alert('Lỗi khi từ chối: ' + error.message);
@@ -198,7 +213,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2 style={{ margin: 0, color: '#111827' }}>⚙️ Quản Lý Hệ Thống Hóa Đơn</h2>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -221,9 +236,8 @@ export default function AdminPage() {
       </div>
 
       {showHistory ? (
-        /* GIAO DIỆN LỊCH SỬ LƯU BẰNG CHỨNG BILL */
         <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-          <h3 style={{ marginTop: 0, color: '#111827' }}>📁 Lịch Sử Tất Cả Ảnh Bill Đã Gửi (Làm Bằng Chứng)</h3>
+          <h3 style={{ marginTop: 0, color: '#111827' }}>📁 Lịch Sử Tất Cả Ảnh Bill Đã Gửi</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px', marginTop: '16px' }}>
             {historyList.length === 0 ? (
               <p style={{ color: '#6b7280' }}>Chưa có lịch sử gửi bill nào.</p>
@@ -243,39 +257,74 @@ export default function AdminPage() {
           </div>
         </div>
       ) : (
-        /* GIAO DIỆN QUẢN LÝ CHÍNH */
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
-            <form onSubmit={handleAddBill} style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '12px' }}>➕ Thêm Mã Mới</h4>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}>
-                  <option value="dien">Điện</option>
-                  <option value="nuoc">Nước</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="Nhập mã hóa đơn..."
-                  value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
-                  style={{ flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-                />
+          {/* KHUNG THÊM ĐƠN RỘNG RÃI & RÕ RÀNG CÁC CỘT */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '32px' }}>
+            <form onSubmit={handleAddBill} style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                ➕ Thêm Đơn Hóa Đơn Mới
+              </h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Loại Hóa Đơn</label>
+                  <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
+                    <option value="dien">⚡ Điện</option>
+                    <option value="nuoc">💧 Nước</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 1: Mã Hóa Đơn (*)</label>
+                  <input
+                    type="text"
+                    placeholder="VD: PA0102030404"
+                    value={newCode}
+                    onChange={(e) => setNewCode(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 2: Tên Khách Hàng</label>
+                  <input
+                    type="text"
+                    placeholder="VD: Nguyễn Văn A"
+                    value={newCustomerName}
+                    onChange={(e) => setNewCustomerName(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 3: Số Tiền (VNĐ)</label>
+                  <input
+                    type="number"
+                    placeholder="VD: 500000"
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                  />
+                </div>
               </div>
-              <button type="submit" style={{ width: '100%', padding: '8px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                Thêm Mã
+
+              <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>
+                Thêm Đơn Vào Hệ Thống
               </button>
             </form>
 
-            <form onSubmit={handleChangePassword} style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '12px' }}>🔑 Đổi Mật Khẩu Admin</h4>
-              <input
-                type="password"
-                placeholder="Mật khẩu mới..."
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                style={{ width: '100%', padding: '8px', marginBottom: '8px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-              />
-              <button type="submit" style={{ width: '100%', padding: '8px', backgroundColor: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <form onSubmit={handleChangePassword} style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <h4 style={{ marginTop: 0, marginBottom: '16px', color: '#1f2937' }}>🔑 Đổi Mật Khẩu Admin</h4>
+                <input
+                  type="password"
+                  placeholder="Mật khẩu mới..."
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
+                />
+              </div>
+              <button type="submit" style={{ width: '100%', padding: '10px', backgroundColor: '#4b5563', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
                 Lưu Mật Khẩu
               </button>
             </form>
@@ -285,7 +334,7 @@ export default function AdminPage() {
             <button
               onClick={() => setBillType('dien')}
               style={{
-                padding: '10px 20px',
+                padding: '10px 24px',
                 borderRadius: '8px',
                 border: 'none',
                 backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
@@ -299,7 +348,7 @@ export default function AdminPage() {
             <button
               onClick={() => setBillType('nuoc')}
               style={{
-                padding: '10px 20px',
+                padding: '10px 24px',
                 borderRadius: '8px',
                 border: 'none',
                 backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
@@ -312,7 +361,7 @@ export default function AdminPage() {
             </button>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
             {bills.map((bill) => {
               const isActive = bill.status === 'active';
               const isPending = bill.status === 'pending';
@@ -341,6 +390,13 @@ export default function AdminPage() {
                       {isPending && <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '2px 8px', borderRadius: '4px' }}>Đang xử lý</span>}
                       {isUsed && <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>Hoàn tất</span>}
                     </div>
+
+                    {(bill.customer_name || bill.amount) && (
+                      <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '8px' }}>
+                        {bill.customer_name && <div>👤 <b>Khách hàng:</b> {bill.customer_name}</div>}
+                        {bill.amount && bill.amount > 0 && <div>💵 <b>Số tiền:</b> {bill.amount.toLocaleString('vi-VN')} VNĐ</div>}
+                      </div>
+                    )}
 
                     {bill.image_url ? (
                       <div style={{ margin: '12px 0', textAlign: 'center' }}>
