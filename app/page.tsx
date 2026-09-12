@@ -1,96 +1,143 @@
-  'use client';
+'use client';
 
 import { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hvyqjmesurfhzrabwgin.supabase.co';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_-dl_DryxhLjl30kDjMl1nw_H-myWvX6';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export default function Home() {
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const [type, setType] = useState('dien');
-  const [bill, setBill] = useState<any>(null);
+export default function HomePage() {
+  const [billType, setBillType] = useState<'dien' | 'nuoc'>('dien');
+  const [codeData, setCodeData] = useState<{ id: number; code: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [copied, setCopied] = useState(false);
 
-  const getBillCode = async () => {
+  const handleGetCode = async () => {
     setLoading(true);
-    setError('');
-    setBill(null);
-    const { data, error: fetchError } = await supabase
-      .from('bills')
-      .select('*')
-      .eq('type', type)
-      .eq('status', 'available')
-      .limit(1)
-      .single();
+    setErrorMsg('');
+    setCodeData(null);
+    setCopied(false);
 
-    if (fetchError || !data) {
-      setError('Hiện tại đã hết mã hóa đơn khả dụng cho loại này!');
-      setLoading(false);
+    // Gọi hàm RPC để lấy mã và đổi ngay trạng thái thành 'used'
+    const { data, error } = await supabase.rpc('get_and_claim_bill', { p_type: billType });
+
+    setLoading(false);
+
+    if (error) {
+      setErrorMsg(`Lỗi kết nối: ${error.message}`);
       return;
     }
 
-    setBill(data);
-    setLoading(false);
+    if (!data || data.length === 0) {
+      setErrorMsg('Hiện tại đã hết mã hóa đơn khả dụng cho loại này!');
+      return;
+    }
+
+    setCodeData(data[0]);
+  };
+
+  const handleCopy = () => {
+    if (codeData?.code) {
+      navigator.clipboard.writeText(codeData.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white p-6 rounded-xl shadow-lg max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold mb-4 text-slate-800">
-          Lấy Mã Thanh Toán Hóa Đơn
-        </h1>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'sans-serif' }}>
+      <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', textAlign: 'center', width: '380px' }}>
+        <h2 style={{ marginBottom: '20px', color: '#1a252c' }}>Lấy Mã Thanh Toán Hóa Đơn</h2>
 
-        <div className="flex justify-center gap-4 mb-6">
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
           <button
-            onClick={() => setType('dien')}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              type === 'dien'
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-200 text-slate-700'
-            }`}
+            onClick={() => { setBillType('dien'); setCodeData(null); setErrorMsg(''); }}
+            style={{
+              flex: 1,
+              padding: '10px',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
+              color: billType === 'dien' ? '#fff' : '#374151',
+            }}
           >
             Mã Tiền Điện
           </button>
           <button
-            onClick={() => setType('nuoc')}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              type === 'nuoc'
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-200 text-slate-700'
-            }`}
+            onClick={() => { setBillType('nuoc'); setCodeData(null); setErrorMsg(''); }}
+            style={{
+              flex: 1,
+              padding: '10px',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
+              color: billType === 'nuoc' ? '#fff' : '#374151',
+            }}
           >
             Mã Tiền Nước
           </button>
         </div>
 
         <button
-          onClick={getBillCode}
+          onClick={handleGetCode}
           disabled={loading}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-lg transition disabled:opacity-50"
+          style={{
+            width: '100%',
+            padding: '12px',
+            borderRadius: '6px',
+            border: 'none',
+            backgroundColor: loading ? '#9ca3af' : '#059669',
+            color: '#fff',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            marginBottom: '15px'
+          }}
         >
-          {loading ? 'Đang lấy mã...' : 'Nhận Mã Mới'}
+          {loading ? 'Đang cấp mã...' : 'Nhận Mã Mới'}
         </button>
 
-        {error && (
-          <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-            {error}
+        {codeData && (
+          <div style={{ padding: '15px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', borderRadius: '8px', marginTop: '10px' }}>
+            <span style={{ fontSize: '13px', color: '#065f46', display: 'block', marginBottom: '4px' }}>Mã đã được cấp riêng cho bạn:</span>
+            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#047857', letterSpacing: '1px', marginBottom: '10px' }}>
+              {codeData.code}
+            </div>
+
+            <button
+              onClick={handleCopy}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: copied ? '#10b981' : '#2563eb',
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              {copied ? '✓ Đã Copy Mã' : 'Copy Mã'}
+            </button>
+
+            <div style={{ marginTop: '10px', fontSize: '12px', color: '#6b7280' }}>
+              Trạng thái: <span style={{ color: '#dc2626', fontWeight: 'bold' }}>Đã xuất kho (Đã thanh toán)</span>
+            </div>
           </div>
         )}
 
-        {bill && (
-          <div className="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-left">
-            <p className="text-sm text-slate-600">Mã hóa đơn của bạn:</p>
-            <p className="text-2xl font-mono font-bold text-emerald-800 my-1">
-              {bill.bill_code}
-            </p>
-            <p className="text-sm text-slate-600">
-              Số tiền: <span className="font-semibold">{Number(bill.amount).toLocaleString('vi-VN')} đ</span>
-            </p>
+        {errorMsg && (
+          <div style={{ padding: '10px', backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '14px' }}>
+            {errorMsg}
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
