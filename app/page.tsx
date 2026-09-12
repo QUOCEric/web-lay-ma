@@ -111,26 +111,23 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '30px 20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px 0' }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px 0' }}>
             Hệ Thống Lấy Mã Hóa Đơn
           </h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
-            Chọn hóa đơn cần lấy mã và tải ảnh xác nhận thanh toán
-          </p>
         </div>
 
         {/* Tab Switcher */}
-        <div style={{ display: 'flex', justifyContent: 'center', maxWidth: '300px', margin: '0 auto 24px auto', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', maxWidth: '260px', margin: '0 auto 24px auto', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '8px' }}>
           <button
             onClick={() => setBillType('dien')}
             style={{
               flex: 1,
-              padding: '8px 16px',
-              borderRadius: '8px',
+              padding: '6px 12px',
+              borderRadius: '6px',
               border: 'none',
               fontWeight: '600',
               fontSize: '13px',
@@ -139,14 +136,14 @@ export default function HomePage() {
               color: billType === 'dien' ? '#ffffff' : '#64748b',
             }}
           >
-            ⚡ Tiền Điện
+            Tiền Điện
           </button>
           <button
             onClick={() => setBillType('nuoc')}
             style={{
               flex: 1,
-              padding: '8px 16px',
-              borderRadius: '8px',
+              padding: '6px 12px',
+              borderRadius: '6px',
               border: 'none',
               fontWeight: '600',
               fontSize: '13px',
@@ -155,17 +152,17 @@ export default function HomePage() {
               color: billType === 'nuoc' ? '#ffffff' : '#64748b',
             }}
           >
-            💧 Tiền Nước
+            Tiền Nước
           </button>
         </div>
 
-        {/* Cards Grid: Xếp hàng ngang */}
+        {/* Cards Grid: Bắt buộc chia 3 cột hàng ngang */}
         {bills.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8' }}>
             Không có mã nào sẵn sàng.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
             {bills.map((bill) => {
               const isActive = bill.status === 'active';
               const isPending = bill.status === 'pending';
@@ -176,48 +173,47 @@ export default function HomePage() {
                   key={bill.id}
                   style={{
                     backgroundColor: '#ffffff',
-                    borderRadius: '12px',
+                    borderRadius: '10px',
                     padding: '16px',
-                    border: '1px solid',
-                    borderColor: isUsed ? '#fecaca' : isPending ? '#fef08a' : '#e2e8f0',
+                    border: '1px solid #e2e8f0',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
-                    justify: 'space-between',
+                    justifySpace: 'space-between',
                   }}
                 >
                   <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
-                        {bill.code}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
+                        Mã: {bill.code}
                       </span>
 
                       {/* Status Badge */}
                       {isActive && (
-                        <span style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                        <span style={{ backgroundColor: '#22c55e', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
                           Sẵn Sàng
                         </span>
                       )}
                       {isPending && (
-                        <span style={{ backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                        <span style={{ backgroundColor: '#eab308', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
                           Đang Xử Lý
                         </span>
                       )}
                       {isUsed && (
-                        <span style={{ backgroundColor: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
+                        <span style={{ backgroundColor: '#ef4444', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600' }}>
                           Đã Thanh Toán
                         </span>
                       )}
                     </div>
 
-                    <div style={{ fontSize: '13px', color: '#475569', marginBottom: '12px', lineHeight: '1.5' }}>
+                    <div style={{ fontSize: '13px', color: '#334155', marginBottom: '12px', lineHeight: '1.6' }}>
                       <div>Chủ Hóa Đơn: <strong>{bill.owner_name}</strong></div>
                       <div>Số Tiền: <strong style={{ color: '#2563eb' }}>{bill.amount.toLocaleString('vi-VN')} VNĐ</strong></div>
                     </div>
                   </div>
 
                   {/* Actions */}
-                  <div style={{ paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                  <div style={{ paddingTop: '8px' }}>
                     {isActive && (
                       <button
                         onClick={() => handleCopy(bill)}
@@ -238,7 +234,7 @@ export default function HomePage() {
                     )}
 
                     {isPending && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <input
                           type="file"
                           accept="image/*"
@@ -284,7 +280,7 @@ export default function HomePage() {
                           cursor: 'not-allowed',
                         }}
                       >
-                        Không Thể Copy
+                        Đã Khóa
                       </button>
                     )}
                   </div>
