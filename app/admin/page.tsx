@@ -22,69 +22,14 @@ export default function AdminPage() {
   const [newCode, setNewCode] = useState<string>('');
   const [newType, setNewType] = useState<string>('dien');
 
-  // Thêm state đổi mật khẩu
-  const [currentPass, setCurrentPass] = useState<string>('');
-  const [newPass, setNewPass] = useState<string>('');
-  const [confirmPass, setConfirmPass] = useState<string>('');
-  const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
-
-  // Lấy mật khẩu Admin từ Supabase
-  const getAdminPassword = async () => {
-    const { data } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'admin_password')
-      .single();
-
-    return data?.value || '123456';
-  };
-
-  // Đăng nhập
-  const handleLogin = async (e: React.FormEvent) => {
+  // Đăng nhập Admin
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const correctPassword = await getAdminPassword();
-
-    if (passwordInput === correctPassword) {
+    if (passwordInput === '123456') {
       setIsAuthenticated(true);
       fetchBills();
     } else {
       alert('Mật khẩu không đúng!');
-    }
-  };
-
-  // Hàm xử lý đổi mật khẩu
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMsg(null);
-
-    const actualPass = await getAdminPassword();
-
-    if (currentPass !== actualPass) {
-      setMsg({ text: 'Mật khẩu hiện tại không đúng!', isError: true });
-      return;
-    }
-
-    if (newPass.length < 6) {
-      setMsg({ text: 'Mật khẩu mới phải từ 6 ký tự trở lên!', isError: true });
-      return;
-    }
-
-    if (newPass !== confirmPass) {
-      setMsg({ text: 'Mật khẩu mới nhập lại không khớp!', isError: true });
-      return;
-    }
-
-    const { error } = await supabase
-      .from('settings')
-      .upsert({ key: 'admin_password', value: newPass }, { onConflict: 'key' });
-
-    if (!error) {
-      setMsg({ text: 'Đổi mật khẩu thành công!', isError: false });
-      setCurrentPass('');
-      setNewPass('');
-      setConfirmPass('');
-    } else {
-      setMsg({ text: 'Lỗi: ' + error.message, isError: true });
     }
   };
 
@@ -144,7 +89,6 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Form Thêm Đơn - Giao Diện Cũ */}
       <form onSubmit={handleAddBill} style={{ display: 'flex', gap: '12px', marginBottom: '24px', backgroundColor: '#f9f9f9', padding: '16px', borderRadius: '8px' }}>
         <input
           type="text"
@@ -162,8 +106,7 @@ export default function AdminPage() {
         </button>
       </form>
 
-      {/* Bảng Đơn - Giao Diện Cũ */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginBottom: '40px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
         <thead>
           <tr style={{ backgroundColor: '#f1f5f9' }}>
             <th style={{ padding: '12px', border: '1px solid #e2e8f0' }}>ID</th>
@@ -199,44 +142,6 @@ export default function AdminPage() {
           ))}
         </tbody>
       </table>
-
-      {/* MỤC CÀI ĐẶT ĐỔI MẬT KHẨU - THÊM VÀO Ở BÊN DƯỚI */}
-      <div style={{ maxWidth: '400px', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-        <h3 style={{ marginTop: 0, marginBottom: '16px' }}>⚙️ Cài Đặt - Đổi Mật Khẩu Admin</h3>
-        <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <input
-            type="password"
-            placeholder="Mật khẩu hiện tại"
-            value={currentPass}
-            onChange={(e) => setCurrentPass(e.target.value)}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-          />
-          <input
-            type="password"
-            placeholder="Mật khẩu mới"
-            value={newPass}
-            onChange={(e) => setNewPass(e.target.value)}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-          />
-          <input
-            type="password"
-            placeholder="Nhập lại mật khẩu mới"
-            value={confirmPass}
-            onChange={(e) => setConfirmPass(e.target.value)}
-            style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
-          />
-
-          {msg && (
-            <div style={{ color: msg.isError ? 'red' : 'green', fontSize: '14px' }}>
-              {msg.text}
-            </div>
-          )}
-
-          <button type="submit" style={{ padding: '8px 16px', backgroundColor: '#0070f3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-            Cập Nhật Mật Khẩu
-          </button>
-        </form>
-      </div>
     </div>
   );
 }
