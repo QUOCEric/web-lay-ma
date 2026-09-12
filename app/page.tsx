@@ -56,10 +56,23 @@ export default function HomePage() {
     fetchAllBills();
   };
 
-  const handleCopy = (id: number, code: string) => {
+  const handleCopy = async (id: number, code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+
+    const { error } = await supabase
+      .from('bills')
+      .update({ status: 'used' })
+      .eq('id', id);
+
+    if (!error) {
+      setBills((prevBills) =>
+        prevBills.map((item) =>
+          item.id === id ? { ...item, status: 'used' } : item
+        )
+      );
+    }
   };
 
   return (
