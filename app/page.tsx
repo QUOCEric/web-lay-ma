@@ -48,11 +48,16 @@ export default function HomePage() {
   useEffect(() => {
     fetchBills();
 
+    // Lắng nghe Realtime tự động cập nhật không cần F5
     const channel = supabase
-      .channel('realtime_bills')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
-        fetchBills();
-      })
+      .channel('public:bills')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bills' },
+        () => {
+          fetchBills();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -112,13 +117,11 @@ export default function HomePage() {
 
     const imageUrl = publicUrlData.publicUrl;
 
-    // Lưu link ảnh vào CẢ 2 CỘT (image_url và image) để đảm bảo đồng bộ 100%
     const { error: updateError } = await supabase
       .from('bills')
       .update({ 
         status: 'used', 
-        image_url: imageUrl,
-        image: imageUrl 
+        image_url: imageUrl 
       })
       .eq('id', billId);
 
