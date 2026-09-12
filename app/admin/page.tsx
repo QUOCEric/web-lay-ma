@@ -7,73 +7,71 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const ADMIN_PASSWORD = '123'; 
-
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  
-  const [billType, setBillType] = useState('dien');
-  const [rawCodes, setRawCodes] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
+  const [billType, setBillType] = useState<'dien' | 'nuoc'>('dien');
+  const [rawText, setRawText] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === ADMIN_PASSWORD) {
-      setIsAuthenticated(true);
-      setMessage('');
+    if (password === '123') {
+      setAuthenticated(true);
     } else {
-      alert('Mật khẩu không chính xác!');
+      alert('Mật khẩu không đúng!');
     }
   };
 
-  const handleAddCodes = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!rawCodes.trim()) {
-      alert('Vui lòng nhập danh sách mã!');
-      return;
-    }
-
+  const handleImport = async () => {
+    if (!rawText.trim()) return;
     setLoading(true);
     setMessage('');
 
-    const codeList = rawCodes
-      .split('\n')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
+    const lines = rawText.split('\n').filter((l) => l.trim() !== '');
+    const records = lines.map((line) => {
+      const parts = line.split('|').map((item) => item.trim());
+      return {
+        code: parts[0] || '',
+        owner_name: parts[1] || 'Chưa cập nhật',
+        amount: parseFloat(parts[2]) || 0,
+        type: billType,
+        status: 'active',
+      };
+    }).filter((r) => r.code !== '');
 
-    const payload = codeList.map((code) => ({
-      code: code,
-      type: billType,
-      status: 'active'
-    }));
+    if (records.length === 0) {
+      setMessage('Không tìm thấy dữ liệu hợp lệ!');
+      setLoading(false);
+      return;
+    }
 
-    const { error } = await supabase.from('bills').insert(payload);
-
+    const { error } = await supabase.from('bills').insert(records);
     setLoading(false);
+
     if (error) {
-      setMessage(`Lỗi khi lưu mã: ${error.message}`);
+      setMessage(`Lỗi: ${error.message}`);
     } else {
-      setMessage(`Thêm thành công ${codeList.length} mã (${billType === 'dien' ? 'Mã Điện' : 'Mã Nước'})!`);
-      setRawCodes('');
+      setMessage(`Thành công! Đã thêm ${records.length} mã hóa đơn.`);
+      setRawText('');
     }
   };
 
-  if (!isAuthenticated) {
+  if (!authenticated) {
     return (
-      <div style={{ maxWidth: '400px', margin: '80px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', textAlign: 'center' }}>
-        <h2>Đăng Nhập Quản Trị (Admin)</h2>
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+        <form onSubmit={handleLogin} style={{ padding: '30px', border: '1px solid #ccc', borderRadius: '8px', textAlign: 'center' }}>
+          <h2>Quản Trị Hệ Thống</h2>
           <input
             type="password"
-            placeholder="Nhập mật khẩu Admin"
-            value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)}
-            style={{ padding: '10px', fontSize: '16px' }}
+            placeholder="Nhập mật khẩu"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ padding: '10px', width: '100%', marginBottom: '15px', borderRadius: '4px', border: '1px solid #ccc' }}
           />
-          <button type="submit" style={{ padding: '10px', backgroundColor: '#0070f3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Đăng nhập
+          <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            Đăng Nhập
           </button>
         </form>
       </div>
@@ -81,57 +79,39 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={{ maxWidth: '600px', margin: '40px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-      <h2>Trang Nạp Mã Hóa Đơn Hàng Tháng</h2>
-      
-      <form onSubmit={handleAddCodes} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
-        <div>
-          <label style={{ fontWeight: 'bold' }}>Loại mã: </label>
-          <select 
-            value={billType} 
-            onChange={(e) => setBillType(e.target.value)}
-            style={{ padding: '8px', fontSize: '15px', marginLeft: '10px' }}
-          >
-            <option value="dien">Mã Điện</option>
-            <option value="nuoc">Mã Nước</option>
-          </select>
-        </div>
+    <div style={{ padding: '30px', maxWidth: '600px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+      <h2>Trang Nhập Mã Hóa Đơn</h2>
 
-        <div>
-          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '8px' }}>
-            Danh sách mã (Mỗi mã nằm trên 1 dòng):
-          </label>
-          <textarea
-            rows={10}
-            placeholder={`PA01001\nPA01002\nPA01003`}
-            value={rawCodes}
-            onChange={(e) => setRawCodes(e.target.value)}
-            style={{ width: '100%', padding: '10px', fontSize: '14px', boxSizing: 'border-box' }}
-          />
-        </div>
+      <div style={{ marginBottom: '15px' }}>
+        <label style={{ marginRight: '15px', fontWeight: 'bold' }}>Loại hóa đơn:</label>
+        <select value={billType} onChange={(e) => setBillType(e.target.value as 'dien' | 'nuoc')} style={{ padding: '8px', borderRadius: '4px' }}>
+          <option value="dien">Tiền Điện</option>
+          <option value="nuoc">Tiền Nước</option>
+        </select>
+      </div>
 
-        <button 
-          type="submit" 
-          disabled={loading}
-          style={{ 
-            padding: '12px', 
-            backgroundColor: loading ? '#ccc' : '#28a745', 
-            color: '#fff', 
-            fontSize: '16px', 
-            border: 'none', 
-            borderRadius: '4px', 
-            cursor: loading ? 'not-allowed' : 'pointer' 
-          }}
-        >
-          {loading ? 'Đang cập nhật...' : 'Nạp Mã Vào Hệ Thống'}
-        </button>
-      </form>
+      <p style={{ fontSize: '13px', color: '#666' }}>
+        Nhập theo định dạng mỗi dòng: <strong>Mã | Tên Chủ Mã | Số Tiền</strong><br />
+        Ví dụ: <i>PA01020304 | Nguyen Van A | 250000</i>
+      </p>
 
-      {message && (
-        <p style={{ marginTop: '20px', color: message.startsWith('Lỗi') ? 'red' : 'green', fontWeight: 'bold' }}>
-          {message}
-        </p>
-      )}
+      <textarea
+        rows={8}
+        value={rawText}
+        onChange={(e) => setRawText(e.target.value)}
+        placeholder="PA01020304 | Nguyen Van A | 250000&#10;PA01020305 | Tran Thi B | 180000"
+        style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #ccc', marginBottom: '15px' }}
+      />
+
+      <button
+        onClick={handleImport}
+        disabled={loading}
+        style={{ padding: '12px 24px', backgroundColor: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+      >
+        {loading ? 'Đang nạp...' : 'Nạp Mã Vào Hệ Thống'}
+      </button>
+
+      {message && <p style={{ marginTop: '15px', padding: '10px', backgroundColor: '#e0f2fe', borderRadius: '4px' }}>{message}</p>}
     </div>
   );
 }

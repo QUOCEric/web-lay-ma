@@ -1,143 +1,193 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+interface BillItem {
+  id: number;
+  code: string;
+  owner_name: string;
+  amount: number;
+  type: string;
+  status: string;
+}
+
 export default function HomePage() {
   const [billType, setBillType] = useState<'dien' | 'nuoc'>('dien');
-  const [codeData, setCodeData] = useState<{ id: number; code: string } | null>(null);
+  const [bills, setBills] = useState<BillItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [claimedCode, setClaimedCode] = useState<BillItem | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const fetchAllBills = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('type', billType)
+      .order('id', { ascending: true });
+
+    setBills(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchAllBills();
+    setClaimedCode(null);
+  }, [billType]);
 
   const handleGetCode = async () => {
     setLoading(true);
-    setErrorMsg('');
-    setCodeData(null);
-    setCopied(false);
+    setClaimedCode(null);
 
-    // Gọi hàm RPC để lấy mã và đổi ngay trạng thái thành 'used'
     const { data, error } = await supabase.rpc('get_and_claim_bill', { p_type: billType });
-
     setLoading(false);
 
-    if (error) {
-      setErrorMsg(`Lỗi kết nối: ${error.message}`);
+    if (error || !data || data.length === 0) {
+      alert('Hiện tại đã hết mã hóa đơn khả dụng!');
       return;
     }
 
-    if (!data || data.length === 0) {
-      setErrorMsg('Hiện tại đã hết mã hóa đơn khả dụng cho loại này!');
-      return;
-    }
-
-    setCodeData(data[0]);
+    setClaimedCode(data[0]);
+    fetchAllBills();
   };
 
-  const handleCopy = () => {
-    if (codeData?.code) {
-      navigator.clipboard.writeText(codeData.code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+  const handleCopy = (id: number, code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f2f5', fontFamily: 'sans-serif' }}>
-      <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', textAlign: 'center', width: '380px' }}>
-        <h2 style={{ marginBottom: '20px', color: '#1a252c' }}>Lấy Mã Thanh Toán Hóa Đơn</h2>
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+      <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>Hệ Thống Phân Phối Mã Thanh Toán</h2>
 
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
-          <button
-            onClick={() => { setBillType('dien'); setCodeData(null); setErrorMsg(''); }}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
-              color: billType === 'dien' ? '#fff' : '#374151',
-            }}
-          >
-            Mã Tiền Điện
-          </button>
-          <button
-            onClick={() => { setBillType('nuoc'); setCodeData(null); setErrorMsg(''); }}
-            style={{
-              flex: 1,
-              padding: '10px',
-              borderRadius: '6px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
-              color: billType === 'nuoc' ? '#fff' : '#374151',
-            }}
-          >
-            Mã Tiền Nước
-          </button>
-        </div>
+      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
+        <button
+          onClick={() => setBillType('dien')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '6px',
+            border: 'none',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'dien' ? '#fff' : '#374151',
+          }}
+        >
+          Mã Tiền Điện
+        </button>
+        <button
+          onClick={() => setBillType('nuoc')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '6px',
+            border: 'none',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'nuoc' ? '#fff' : '#374151',
+          }}
+        >
+          Mã Tiền Nước
+        </button>
+      </div>
 
+      <div style={{ textAlign: 'center', marginBottom: '25px' }}>
         <button
           onClick={handleGetCode}
           disabled={loading}
           style={{
-            width: '100%',
-            padding: '12px',
-            borderRadius: '6px',
-            border: 'none',
-            backgroundColor: loading ? '#9ca3af' : '#059669',
-            color: '#fff',
+            padding: '12px 30px',
             fontSize: '16px',
             fontWeight: 'bold',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            marginBottom: '15px'
+            backgroundColor: '#059669',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
           }}
         >
-          {loading ? 'Đang cấp mã...' : 'Nhận Mã Mới'}
+          {loading ? 'Đang lấy mã...' : 'Nhận 1 Mã Mới Khả Dụng'}
         </button>
-
-        {codeData && (
-          <div style={{ padding: '15px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', borderRadius: '8px', marginTop: '10px' }}>
-            <span style={{ fontSize: '13px', color: '#065f46', display: 'block', marginBottom: '4px' }}>Mã đã được cấp riêng cho bạn:</span>
-            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#047857', letterSpacing: '1px', marginBottom: '10px' }}>
-              {codeData.code}
-            </div>
-
-            <button
-              onClick={handleCopy}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: copied ? '#10b981' : '#2563eb',
-                color: '#fff',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              {copied ? '✓ Đã Copy Mã' : 'Copy Mã'}
-            </button>
-
-            <div style={{ marginTop: '10px', fontSize: '12px', color: '#6b7280' }}>
-              Trạng thái: <span style={{ color: '#dc2626', fontWeight: 'bold' }}>Đã xuất kho (Đã thanh toán)</span>
-            </div>
-          </div>
-        )}
-
-        {errorMsg && (
-          <div style={{ padding: '10px', backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: '6px', fontSize: '14px' }}>
-            {errorMsg}
-          </div>
-        )}
       </div>
+
+      {claimedCode && (
+        <div style={{ padding: '15px', backgroundColor: '#ecfdf5', border: '1px solid #10b981', borderRadius: '8px', marginBottom: '25px', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: '#065f46' }}>Mã của bạn:</h3>
+          <p style={{ margin: '4px 0' }}><strong>Mã:</strong> {claimedCode.code}</p>
+          <p style={{ margin: '4px 0' }}><strong>Chủ mã:</strong> {claimedCode.owner_name}</p>
+          <p style={{ margin: '4px 0' }}><strong>Số tiền:</strong> {claimedCode.amount?.toLocaleString('vi-VN')} VNĐ</p>
+          <button
+            onClick={() => handleCopy(claimedCode.id, claimedCode.code)}
+            style={{ marginTop: '10px', padding: '8px 16px', backgroundColor: copiedId === claimedCode.id ? '#10b981' : '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            {copiedId === claimedCode.id ? '✓ Đã Copy' : 'Copy Mã'}
+          </button>
+        </div>
+      )}
+
+      <h3>Danh Sách Tất Cả Mã Hóa Đơn ({billType === 'dien' ? 'Điện' : 'Nước'})</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f3f4f6', textAlign: 'left' }}>
+            <th style={{ padding: '10px', border: '1px solid #e5e7eb' }}>Mã Thanh Toán</th>
+            <th style={{ padding: '10px', border: '1px solid #e5e7eb' }}>Tên Chủ Mã</th>
+            <th style={{ padding: '10px', border: '1px solid #e5e7eb' }}>Số Tiền</th>
+            <th style={{ padding: '10px', border: '1px solid #e5e7eb' }}>Trạng Thái</th>
+            <th style={{ padding: '10px', border: '1px solid #e5e7eb' }}>Hành Động</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bills.length === 0 ? (
+            <tr>
+              <td colSpan={5} style={{ padding: '15px', textAlign: 'center', color: '#6b7280' }}>Chưa có mã nào trong hệ thống</td>
+            </tr>
+          ) : (
+            bills.map((item) => (
+              <tr key={item.id} style={{ backgroundColor: item.status === 'used' ? '#fef2f2' : '#fff' }}>
+                <td style={{ padding: '10px', border: '1px solid #e5e7eb', fontWeight: 'bold' }}>{item.code}</td>
+                <td style={{ padding: '10px', border: '1px solid #e5e7eb' }}>{item.owner_name}</td>
+                <td style={{ padding: '10px', border: '1px solid #e5e7eb' }}>{item.amount?.toLocaleString('vi-VN')} đ</td>
+                <td style={{ padding: '10px', border: '1px solid #e5e7eb' }}>
+                  <span
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      backgroundColor: item.status === 'active' ? '#dcfce7' : '#fee2e2',
+                      color: item.status === 'active' ? '#15803d' : '#b91c1c',
+                    }}
+                  >
+                    {item.status === 'active' ? 'Sẵn Sàng' : 'Đã Thanh Toán / Đã Dùng'}
+                  </span>
+                </td>
+                <td style={{ padding: '10px', border: '1px solid #e5e7eb' }}>
+                  <button
+                    onClick={() => handleCopy(item.id, item.code)}
+                    style={{
+                      padding: '6px 12px',
+                      border: 'none',
+                      borderRadius: '4px',
+                      backgroundColor: copiedId === item.id ? '#10b981' : '#2563eb',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {copiedId === item.id ? '✓ Đã Copy' : 'Copy Mã'}
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
