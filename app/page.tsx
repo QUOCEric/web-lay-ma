@@ -48,16 +48,11 @@ export default function HomePage() {
   useEffect(() => {
     fetchBills();
 
-    // Lắng nghe Realtime tự động cập nhật không cần F5
     const channel = supabase
       .channel('public:bills')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'bills' },
-        () => {
-          fetchBills();
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+        fetchBills();
+      })
       .subscribe();
 
     return () => {
@@ -65,6 +60,7 @@ export default function HomePage() {
     };
   }, [billType]);
 
+  // Khóa đơn ngay lập tức khi ấn Copy
   const handleCopy = async (bill: Bill) => {
     if (bill.status !== 'active') return;
 
@@ -76,6 +72,7 @@ export default function HomePage() {
       .select();
 
     if (error || !data || data.length === 0) {
+      alert('Đơn này vừa có người khác giữ!');
       fetchBills();
       return;
     }
@@ -88,17 +85,18 @@ export default function HomePage() {
     fetchBills();
   };
 
-  const handleUploadBill = async (billId: number) => {
-    const file = fileMap[billId];
+  // Upload ảnh chuyển khoản và lưu vào Lịch sử
+  const handleUploadBill = async (bill: Bill) => {
+    const file = fileMap[bill.id];
     if (!file) {
       alert('Vui lòng chọn ảnh chuyển khoản trước!');
       return;
     }
 
-    setUploadingId(billId);
+    setUploadingId(bill.id);
 
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}_${billId}.${fileExt}`;
+    const fileName = `${Date.now()}_${bill.id}.${fileExt}`;
     const filePath = `bills/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -117,16 +115,27 @@ export default function HomePage() {
 
     const imageUrl = publicUrlData.publicUrl;
 
+    // 1. Cập nhật ảnh vào bảng bills chính
     const { error: updateError } = await supabase
       .from('bills')
       .update({ 
-        status: 'used', 
+        status: 'pending', 
         image_url: imageUrl 
       })
-      .eq('id', billId);
+      .eq('id', bill.id);
+
+    // 2. Lưu vào bảng lịch sử bill_history để Admin đối chứng
+    await supabase.from('bill_history').insert([
+      {
+        bill_id: bill.id,
+        code: bill.code,
+        type: bill.type || billType,
+        image_url: imageUrl
+      }
+    ]);
 
     if (!updateError) {
-      alert('Đã tải ảnh lên và hoàn tất!');
+      alert('Đã gửi ảnh thanh toán! Chờ Admin kiểm tra và duyệt đơn.');
       fetchBills();
     } else {
       alert('Lỗi cập nhật hóa đơn: ' + updateError.message);
@@ -209,7 +218,7 @@ export default function HomePage() {
                 )}
                 {isPending && (
                   <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: '4px' }}>
-                    {isMyBill ? '🔑 Bạn đang xử lý' : '🔒 Đã có người giữ'}
+                    {bill.image_url ? '⏳ Chờ Admin duyệt' : (isMyBill ? '🔑 Bạn đang giữ đơn' : '🔒 Đã bị khóa')}
                   </span>
                 )}
                 {isUsed && (
@@ -240,39 +249,47 @@ export default function HomePage() {
 
               {isPending && isMyBill && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        setFileMap({ ...fileMap, [bill.id]: e.target.files[0] });
-                      }
-                    }}
-                    style={{ fontSize: '13px' }}
-                  />
-                  <button
-                    onClick={() => handleUploadBill(bill.id)}
-                    disabled={uploadingId === bill.id}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {uploadingId === bill.id ? 'Đang gửi...' : 'Xác Nhận Đã Thanh Toán'}
-                  </button>
+                  {bill.image_url ? (
+                    <div style={{ fontSize: '13px', color: '#b45309', textAlign: 'center', padding: '8px 0', fontWeight: '500' }}>
+                      ⏳ Đã gửi bill. Đang chờ Admin xác nhận...
+                    </div>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            setFileMap({ ...fileMap, [bill.id]: e.target.files[0] });
+                          }
+                        }}
+                        style={{ fontSize: '13px' }}
+                      />
+                      <button
+                        onClick={() => handleUploadBill(bill)}
+                        disabled={uploadingId === bill.id}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          backgroundColor: '#16a34a',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {uploadingId === bill.id ? 'Đang gửi...' : 'Xác Nhận Đã Thanh Toán'}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
               {isPending && !isMyBill && (
-                <div style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic', textAlign: 'center', padding: '12px 0' }}>
-                  🚫 Đơn này đang được người khác xử lý.
+                <div style={{ fontSize: '13px', color: '#dc2626', fontWeight: 'bold', textAlign: 'center', padding: '12px 0', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
+                  🔒 Đơn đã được người khác giữ
                 </div>
               )}
 
