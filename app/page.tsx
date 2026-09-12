@@ -57,23 +57,25 @@ export default function HomePage() {
   }, [billType]);
 
   // Xử lý khi nhấn Copy Mã (Không dùng alert, đổi trạng thái tức thì)
+  // Xử lý khi nhấn Copy Mã (Khóa đơn an toàn chống trùng 100%)
   const handleCopy = async (bill: Bill) => {
     if (bill.status !== 'active') return;
 
-    // Chép mã vào clipboard
-    await navigator.clipboard.writeText(bill.code);
-
-    // Chuyển trạng thái sang pending để khóa đơn
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('bills')
       .update({ status: 'pending' })
-      .eq('id', bill.id);
+      .eq('id', bill.id)
+      .eq('status', 'active')
+      .select();
 
-    if (!error) {
+    if (error || !data || data.length === 0) {
       fetchBills();
+      return;
     }
-  };
 
+    await navigator.clipboard.writeText(bill.code);
+    fetchBills();
+  };
   // Xử lý khi upload ảnh chuyển khoản
   const handleUploadBill = async (billId: number) => {
     const file = fileMap[billId];
@@ -177,7 +179,7 @@ export default function HomePage() {
                     padding: '16px',
                     display: 'flex',
                     flexDirection: 'column',
-                    justify: 'space-between',
+                    justifyContent: 'space-between',
                     gap: '12px',
                     width: 'calc(33.333% - 11px)',
                     minWidth: '280px',
