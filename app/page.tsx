@@ -62,7 +62,6 @@ export default function HomePage() {
     if (error) {
       alert('Lỗi cập nhật trạng thái: ' + error.message);
     } else {
-      alert(`Đã copy mã ${bill.code}! Trạng thái chuyển sang Đang Xử Lý.`);
       fetchBills();
     }
   };
@@ -116,7 +115,7 @@ export default function HomePage() {
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px 0' }}>
-            Hệ Thống Lấy Mã Hóa Đơn
+            thanhtoandiennuoc
           </h1>
         </div>
 
