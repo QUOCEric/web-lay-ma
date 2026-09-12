@@ -111,7 +111,7 @@ export default function HomePage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '30px 20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
         
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
@@ -126,7 +126,7 @@ export default function HomePage() {
             onClick={() => setBillType('dien')}
             style={{
               flex: 1,
-              padding: '6px 12px',
+              padding: '8px 16px',
               borderRadius: '6px',
               border: 'none',
               fontWeight: '600',
@@ -142,7 +142,7 @@ export default function HomePage() {
             onClick={() => setBillType('nuoc')}
             style={{
               flex: 1,
-              padding: '6px 12px',
+              padding: '8px 16px',
               borderRadius: '6px',
               border: 'none',
               fontWeight: '600',
@@ -156,13 +156,13 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Cards Grid: Bắt buộc chia 3 cột hàng ngang */}
+        {/* Bố cục Hàng Ngang (Flexbox / Grid) */}
         {bills.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8' }}>
             Không có mã nào sẵn sàng.
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'flex-start' }}>
             {bills.map((bill) => {
               const isActive = bill.status === 'active';
               const isPending = bill.status === 'pending';
@@ -179,7 +179,10 @@ export default function HomePage() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
                     display: 'flex',
                     flexDirection: 'column',
-                    justifySpace: 'space-between',
+                    justifyContent: 'space-between',
+                    width: 'calc(33.333% - 11px)', // Ép đúng 3 thẻ trên 1 hàng ngang
+                    minWidth: '280px',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div>
