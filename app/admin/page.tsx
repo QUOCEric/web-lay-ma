@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [inputText, setInputText] = useState('');
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchBills = async () => {
     const { data } = await supabase
@@ -169,7 +170,7 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {/* Danh sách hiển thị dạng thẻ giống trang chủ */}
+      {/* Danh sách */}
       <h3>Danh Sách Mã ({billType === 'dien' ? 'Tiền Điện' : 'Tiền Nước'})</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
         {bills.length === 0 ? (
@@ -211,13 +212,16 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Xem bill & nút thao tác cho Admin */}
+              {/* Thao tác Admin */}
               <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px dashed #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   {bill.bill_image ? (
-                    <a href={bill.bill_image} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontWeight: 'bold', fontSize: '13px' }}>
+                    <button
+                      onClick={() => setPreviewImage(bill.bill_image || null)}
+                      style={{ padding: '6px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                    >
                       🔍 Xem Ảnh Bill Chuyển Khoản
-                    </a>
+                    </button>
                   ) : (
                     <span style={{ fontSize: '13px', color: '#94a3b8' }}>Chưa có ảnh bill</span>
                   )}
@@ -252,6 +256,49 @@ export default function AdminPage() {
           ))
         )}
       </div>
+
+      {/* Modal Popup Xem Ảnh trực tiếp */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }} onClick={(e) => e.stopPropagation()}>
+            <img src={previewImage} alt="Bill chuyển khoản" style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: '8px', display: 'block', margin: '0 auto' }} />
+            <button
+              onClick={() => setPreviewImage(null)}
+              style={{
+                marginTop: '15px',
+                padding: '10px 20px',
+                backgroundColor: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'block',
+                marginLeft: 'auto',
+                marginRight: 'auto',
+              }}
+            >
+              Đóng Xem Ảnh
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
