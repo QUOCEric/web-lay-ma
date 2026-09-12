@@ -27,12 +27,13 @@ export default function HomePage() {
 
   const fetchAvailableBills = async () => {
     setLoading(true);
+    // Chỉ lấy các đơn có status = 'active' (khi admin duyệt 'used', đơn sẽ tự động biến mất bên người dùng)
     const { data, error } = await supabase
       .from('bills')
       .select('*')
       .eq('type', billType)
       .eq('status', 'active')
-      .order('id', { ascending: true }); // Đã bỏ limit(4) để hiện thị tất cả các mã active
+      .order('id', { ascending: true });
 
     if (!error && data) {
       setBills(data);
@@ -43,6 +44,17 @@ export default function HomePage() {
   useEffect(() => {
     fetchAvailableBills();
     setSelectedBill(null);
+
+    const channel = supabase
+      .channel('client_realtime_bills')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
+        fetchAvailableBills();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [billType]);
 
   const handleSelectBill = async (bill: Bill) => {
