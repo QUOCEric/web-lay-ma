@@ -62,7 +62,7 @@ export default function HomePage() {
     if (error) {
       alert('Lỗi cập nhật trạng thái: ' + error.message);
     } else {
-      alert(`Đã copy mã ${bill.code}! Trạng thái đã chuyển sang Đang Xử Lý.`);
+      alert(`Đã copy mã ${bill.code}! Trạng thái chuyển sang Đang Xử Lý.`);
       fetchBills();
     }
   };
@@ -110,35 +110,33 @@ export default function HomePage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '40px 20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', padding: '30px 20px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
+      <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
         
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#0f172a', margin: '0 0 8px 0', letterSpacing: '-0.5px' }}>
-            Cổng Nhận Mã Hóa Đơn
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px 0' }}>
+            Hệ Thống Lấy Mã Hóa Đơn
           </h1>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>
-            Hệ thống phân phối và xác thực thanh toán hóa đơn điện nước tự động
+          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>
+            Chọn hóa đơn cần lấy mã và tải ảnh xác nhận thanh toán
           </p>
         </div>
 
         {/* Tab Switcher */}
-        <div style={{ display: 'flex', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '10px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', maxWidth: '300px', margin: '0 auto 24px auto', backgroundColor: '#e2e8f0', padding: '4px', borderRadius: '10px' }}>
           <button
             onClick={() => setBillType('dien')}
             style={{
               flex: 1,
-              padding: '10px',
+              padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
               fontWeight: '600',
-              fontSize: '14px',
+              fontSize: '13px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              backgroundColor: billType === 'dien' ? '#ffffff' : 'transparent',
-              color: billType === 'dien' ? '#2563eb' : '#64748b',
-              boxShadow: billType === 'dien' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              backgroundColor: billType === 'dien' ? '#2563eb' : 'transparent',
+              color: billType === 'dien' ? '#ffffff' : '#64748b',
             }}
           >
             ⚡ Tiền Điện
@@ -147,30 +145,28 @@ export default function HomePage() {
             onClick={() => setBillType('nuoc')}
             style={{
               flex: 1,
-              padding: '10px',
+              padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
               fontWeight: '600',
-              fontSize: '14px',
+              fontSize: '13px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              backgroundColor: billType === 'nuoc' ? '#ffffff' : 'transparent',
-              color: billType === 'nuoc' ? '#2563eb' : '#64748b',
-              boxShadow: billType === 'nuoc' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              backgroundColor: billType === 'nuoc' ? '#2563eb' : 'transparent',
+              color: billType === 'nuoc' ? '#ffffff' : '#64748b',
             }}
           >
             💧 Tiền Nước
           </button>
         </div>
 
-        {/* Cards List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {bills.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '40px 20px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8' }}>
-              Hiện chưa có mã hóa đơn nào sẵn sàng.
-            </div>
-          ) : (
-            bills.map((bill) => {
+        {/* Cards Grid: Xếp hàng ngang */}
+        {bills.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#94a3b8' }}>
+            Không có mã nào sẵn sàng.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+            {bills.map((bill) => {
               const isActive = bill.status === 'active';
               const isPending = bill.status === 'pending';
               const isUsed = bill.status === 'used';
@@ -181,79 +177,68 @@ export default function HomePage() {
                   style={{
                     backgroundColor: '#ffffff',
                     borderRadius: '12px',
-                    padding: '20px',
+                    padding: '16px',
                     border: '1px solid',
                     borderColor: isUsed ? '#fecaca' : isPending ? '#fef08a' : '#e2e8f0',
-                    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)',
-                    transition: 'all 0.2s',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justify: 'space-between',
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                    <div>
-                      <div style={{ fontSize: '12px', textTransform: 'uppercase', tracking: '0.05em', color: '#64748b', fontWeight: '600', marginBottom: '4px' }}>
-                        Mã Hóa Đơn
-                      </div>
-                      <div style={{ fontSize: '18px', fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', fontFamily: 'monospace' }}>
                         {bill.code}
-                      </div>
-                    </div>
+                      </span>
 
-                    {/* Status Badge */}
-                    <div>
+                      {/* Status Badge */}
                       {isActive && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: '600' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e' }}></span>
+                        <span style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
                           Sẵn Sàng
                         </span>
                       )}
                       {isPending && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: '600' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#eab308' }}></span>
+                        <span style={{ backgroundColor: '#fefce8', color: '#854d0e', border: '1px solid #fef08a', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
                           Đang Xử Lý
                         </span>
                       )}
                       {isUsed && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', padding: '4px 10px', borderRadius: '9999px', fontSize: '12px', fontWeight: '600' }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+                        <span style={{ backgroundColor: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: '600' }}>
                           Đã Thanh Toán
                         </span>
                       )}
                     </div>
-                  </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px', marginBottom: '16px' }}>
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>Chủ hộ</span>
-                      <strong style={{ fontSize: '14px', color: '#334155' }}>{bill.owner_name}</strong>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '12px', color: '#64748b', display: 'block' }}>Cần thanh toán</span>
-                      <strong style={{ fontSize: '14px', color: '#2563eb' }}>{bill.amount.toLocaleString('vi-VN')} VNĐ</strong>
+                    <div style={{ fontSize: '13px', color: '#475569', marginBottom: '12px', lineHeight: '1.5' }}>
+                      <div>Chủ Hóa Đơn: <strong>{bill.owner_name}</strong></div>
+                      <div>Số Tiền: <strong style={{ color: '#2563eb' }}>{bill.amount.toLocaleString('vi-VN')} VNĐ</strong></div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => handleCopy(bill)}
-                      disabled={!isActive}
-                      style={{
-                        padding: '10px 18px',
-                        backgroundColor: isActive ? '#2563eb' : '#f1f5f9',
-                        color: isActive ? '#ffffff' : '#94a3b8',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: isActive ? 'pointer' : 'not-allowed',
-                        transition: 'all 0.2s',
-                        boxShadow: isActive ? '0 2px 4px rgba(37, 99, 235, 0.2)' : 'none',
-                      }}
-                    >
-                      {isActive ? 'Copy Mã Hóa Đơn' : 'Đã Khóa Mã'}
-                    </button>
+                  {/* Actions */}
+                  <div style={{ paddingTop: '10px', borderTop: '1px solid #f1f5f9' }}>
+                    {isActive && (
+                      <button
+                        onClick={() => handleCopy(bill)}
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          backgroundColor: '#2563eb',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Copy Mã
+                      </button>
+                    )}
 
                     {isPending && (
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, backgroundColor: '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <input
                           type="file"
                           accept="image/*"
@@ -262,13 +247,14 @@ export default function HomePage() {
                               setFileMap({ ...fileMap, [bill.id]: e.target.files[0] });
                             }
                           }}
-                          style={{ fontSize: '12px', color: '#475569', flex: 1 }}
+                          style={{ fontSize: '11px' }}
                         />
                         <button
                           onClick={() => handleUploadBill(bill.id)}
                           disabled={uploadingId === bill.id}
                           style={{
-                            padding: '8px 14px',
+                            width: '100%',
+                            padding: '6px',
                             backgroundColor: '#16a34a',
                             color: '#ffffff',
                             border: 'none',
@@ -276,19 +262,37 @@ export default function HomePage() {
                             fontSize: '12px',
                             fontWeight: '600',
                             cursor: 'pointer',
-                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {uploadingId === bill.id ? 'Đang gửi...' : 'Gửi Bill'}
+                          {uploadingId === bill.id ? 'Đang gửi...' : 'Gửi Bill Thanh Toán'}
                         </button>
                       </div>
+                    )}
+
+                    {isUsed && (
+                      <button
+                        disabled
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          backgroundColor: '#f1f5f9',
+                          color: '#94a3b8',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '13px',
+                          fontWeight: '600',
+                          cursor: 'not-allowed',
+                        }}
+                      >
+                        Không Thể Copy
+                      </button>
                     )}
                   </div>
                 </div>
               );
-            })
-          )}
-        </div>
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
