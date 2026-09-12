@@ -20,8 +20,8 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [bills, setBills] = useState<Bill[]>([]);
+  const [billType, setBillType] = useState<string>('dien');
   const [newCode, setNewCode] = useState<string>('');
-  const [newType, setNewType] = useState<string>('dien');
 
   // State đổi mật khẩu
   const [currentPass, setCurrentPass] = useState<string>('');
@@ -29,7 +29,6 @@ export default function AdminPage() {
   const [confirmPass, setConfirmPass] = useState<string>('');
   const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
-  // Lấy mật khẩu hiện tại từ Supabase
   const getAdminPassword = async () => {
     const { data } = await supabase
       .from('settings')
@@ -40,11 +39,9 @@ export default function AdminPage() {
     return data?.value || '123456';
   };
 
-  // Đăng nhập Admin
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const correctPassword = await getAdminPassword();
-
     if (passwordInput === correctPassword) {
       setIsAuthenticated(true);
       fetchBills();
@@ -53,25 +50,21 @@ export default function AdminPage() {
     }
   };
 
-  // Đổi mật khẩu
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
-
     const actualPass = await getAdminPassword();
 
     if (currentPass !== actualPass) {
       setMsg({ text: 'Mật khẩu hiện tại không đúng!', isError: true });
       return;
     }
-
     if (newPass.length < 6) {
       setMsg({ text: 'Mật khẩu mới phải từ 6 ký tự trở lên!', isError: true });
       return;
     }
-
     if (newPass !== confirmPass) {
-      setMsg({ text: 'Mật khẩu mới nhập lại không khớp!', isError: true });
+      setMsg({ text: 'Mật khẩu mới không khớp!', isError: true });
       return;
     }
 
@@ -89,20 +82,18 @@ export default function AdminPage() {
     }
   };
 
-  // Tải danh sách đơn
   const fetchBills = async () => {
     const { data } = await supabase.from('bills').select('*').order('id', { ascending: false });
     if (data) setBills(data);
   };
 
-  // Thêm đơn mới
   const handleAddBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCode.trim()) return;
 
     const { error } = await supabase
       .from('bills')
-      .insert([{ code: newCode.trim(), type: newType, status: 'active' }]);
+      .insert([{ code: newCode.trim(), type: billType, status: 'active' }]);
 
     if (!error) {
       setNewCode('');
@@ -110,18 +101,9 @@ export default function AdminPage() {
     }
   };
 
-  // Xóa đơn
   const handleDeleteBill = async (id: number) => {
     const { error } = await supabase.from('bills').delete().eq('id', id);
     if (!error) fetchBills();
-  };
-
-  // Chuyển đổi hiển thị trạng thái tiếng Việt
-  const renderStatus = (status: string) => {
-    if (status === 'active') return <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Sẵn sàng</span>;
-    if (status === 'pending') return <span style={{ color: '#b45309', fontWeight: 'bold' }}>Đang xử lý</span>;
-    if (status === 'used') return <span style={{ color: '#dc2626', fontWeight: 'bold' }}>Đã xong</span>;
-    return status;
   };
 
   if (!isAuthenticated) {
@@ -144,8 +126,10 @@ export default function AdminPage() {
     );
   }
 
+  const filteredBills = bills.filter((b) => (b.type || 'dien') === billType);
+
   return (
-    <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto', fontFamily: 'sans-serif', color: '#333' }}>
+    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2 style={{ margin: 0, fontWeight: '500' }}>Trang Quản Trị Hệ Thống</h2>
         <button onClick={() => setIsAuthenticated(false)} style={{ background: 'none', border: 'none', color: '#333', cursor: 'pointer', fontSize: '15px' }}>
@@ -153,74 +137,128 @@ export default function AdminPage() {
         </button>
       </div>
 
+      {/* Thanh Chọn Tab giống Người dùng */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
+        <button
+          onClick={() => setBillType('dien')}
+          style={{
+            padding: '12px 24px',
+            borderRadius: '8px',
+            border: 'none',
+            backgroundColor: billType === 'dien' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'dien' ? '#ffffff' : '#374151',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          ⚡ Hóa Đơn Điện
+        </button>
+        <button
+          onClick={() => setBillType('nuoc')}
+          style={{
+            padding: '12px 24px',
+            borderRadius: '8px',
+            border: 'none',
+            backgroundColor: billType === 'nuoc' ? '#2563eb' : '#e5e7eb',
+            color: billType === 'nuoc' ? '#ffffff' : '#374151',
+            fontSize: '15px',
+            fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          💧 Hóa Đơn Nước
+        </button>
+      </div>
+
       {/* Form Thêm Đơn */}
-      <form onSubmit={handleAddBill} style={{ display: 'flex', gap: '12px', marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px', alignItems: 'center' }}>
+      <form onSubmit={handleAddBill} style={{ display: 'flex', gap: '12px', marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '8px' }}>
         <input
           type="text"
-          placeholder="Nhập mã hóa đơn..."
+          placeholder={`Nhập mã hóa đơn ${billType === 'dien' ? 'điện' : 'nước'}...`}
           value={newCode}
           onChange={(e) => setNewCode(e.target.value)}
-          style={{ flex: 1, padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '14px', outline: 'none' }}
+          style={{ flex: 1, padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '14px' }}
         />
-        <select 
-          value={newType} 
-          onChange={(e) => setNewType(e.target.value)} 
-          style={{ padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', backgroundColor: '#fff', fontSize: '14px', cursor: 'pointer' }}
-        >
-          <option value="dien">⚡ Điện</option>
-          <option value="nuoc">💧 Nước</option>
-        </select>
-        <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+        <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
           + Thêm Đơn
         </button>
       </form>
 
-      {/* Bảng Quản Lý Đơn */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: '40px' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-            <th style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0', width: '50px' }}>ID</th>
-            <th style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0' }}>Mã Đơn</th>
-            <th style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0', width: '100px' }}>Loại</th>
-            <th style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0', width: '120px' }}>Trạng Thái</th>
-            <th style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0', width: '100px' }}>Ảnh CK</th>
-            <th style={{ padding: '12px 16px', width: '100px' }}>Hành Động</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bills.map((bill) => {
-            const imgUrl = bill.image_url || bill.image;
-            return (
-              <tr key={bill.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <td style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0' }}>{bill.id}</td>
-                <td style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0', fontWeight: 'bold' }}>{bill.code}</td>
-                <td style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0' }}>
-                  {bill.type === 'dien' ? '⚡ Điện' : '💧 Nước'}
-                </td>
-                <td style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0' }}>
-                  {renderStatus(bill.status)}
-                </td>
-                <td style={{ padding: '12px 16px', borderRight: '1px solid #e2e8f0' }}>
+      {/* Danh sách Thẻ (Grid) giống hệt trang Người Dùng */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '40px' }}>
+        {filteredBills.map((bill) => {
+          const imgUrl = bill.image_url || bill.image;
+          return (
+            <div
+              key={bill.id}
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                width: 'calc(33.333% - 11px)',
+                minWidth: '280px',
+                boxSizing: 'border-box'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#111827' }}>
+                  Mã: {bill.code}
+                </span>
+
+                {bill.status === 'active' && (
+                  <span style={{ fontSize: '12px', color: '#16a34a', backgroundColor: '#dcfce7', padding: '3px 8px', borderRadius: '4px' }}>
+                    Sẵn sàng
+                  </span>
+                )}
+                {bill.status === 'pending' && (
+                  <span style={{ fontSize: '12px', color: '#b45309', backgroundColor: '#fef3c7', padding: '3px 8px', borderRadius: '4px' }}>
+                    Đang xử lý
+                  </span>
+                )}
+                {bill.status === 'used' && (
+                  <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '3px 8px', borderRadius: '4px' }}>
+                    Hoàn tất
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f3f4f6' }}>
+                <div>
                   {imgUrl ? (
-                    <a href={imgUrl} target="_blank" rel="noreferrer" style={{ color: '#0070f3', fontWeight: 'bold' }}>
-                      Xem ảnh
+                    <a href={imgUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontSize: '13px', fontWeight: '600' }}>
+                      🖼️ Xem ảnh CK
                     </a>
                   ) : (
-                    <span style={{ color: '#94a3b8' }}>Chưa có</span>
+                    <span style={{ fontSize: '13px', color: '#9ca3af' }}>Chưa có ảnh</span>
                   )}
-                </td>
-                <td style={{ padding: '12px 16px' }}>
-                  <button onClick={() => handleDeleteBill(bill.id)} style={{ padding: '6px 12px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                    Xóa
-                  </button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                </div>
 
-      {/* Đổi Mật Khẩu Admin ở dưới cùng */}
+                <button
+                  onClick={() => handleDeleteBill(bill.id)}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Xóa
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Đổi Mật Khẩu */}
       <div style={{ maxWidth: '400px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
         <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px' }}>⚙️ Cài Đặt - Đổi Mật Khẩu Admin</h3>
         <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
