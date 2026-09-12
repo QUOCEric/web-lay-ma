@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -26,6 +25,12 @@ interface BillHistoryItem {
   created_at: string;
 }
 
+interface ParsedBill {
+  code: string;
+  customer_name: string;
+  amount: number;
+}
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -35,12 +40,11 @@ export default function AdminPage() {
   const [historyList, setHistoryList] = useState<BillHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Form thêm đơn hàng mới
-  const [newCode, setNewCode] = useState('');
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newAmount, setNewAmount] = useState('');
+  // Chế độ nhập dữ liệu: 'paste' (Dán từ Excel/Word) hoặc 'file' (Tải File CSV/Text)
+  const [importMode, setImportMode] = useState<'paste' | 'file'>('paste');
+  const [batchText, setBatchText] = useState('');
+  const [parsedBills, setParsedBills] = useState<ParsedBill[]>([]);
   const [newType, setNewType] = useState('dien');
-
   const [newPassword, setNewPassword] = useState('');
 
   const checkAuth = async () => {
@@ -111,31 +115,78 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, billType]);
 
-  const handleAddBill = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newCode.trim()) {
-      alert('Vui lòng nhập Mã Hóa Đơn!');
+  // Bộ bóc tách dữ liệu thông minh (hỗ trợ dán từ Excel, Word, Text, CSV)
+  const parseRawText = (text: string) => {
+    const lines = text.split('\n');
+    const result: ParsedBill[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      // Phân tách bởi tab (Excel copy ra), dấu phẩy (CSV), dấu chấm phẩy hoặc dấu gạch đứng (|)
+      const parts = trimmed.split(/[\t,;|]+/);
+      const code = parts[0] ? parts[0].trim() : '';
+      const customer_name = parts[1] ? parts[1].trim() : '';
+      const amountStr = parts[2] ? parts[2].trim().replace(/[^0-9]/g, '') : '0';
+      const amount = parseInt(amountStr, 10) || 0;
+
+      // Bỏ qua tiêu đề bảng nếu có
+      if (code && code.toLowerCase() !== 'mã đơn' && code.toLowerCase() !== 'ma don') {
+        result.push({ code, customer_name, amount });
+      }
+    });
+
+    setParsedBills(result);
+  };
+
+  // Xử lý dán văn bản
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setBatchText(val);
+    parseRawText(val);
+  };
+
+  // Xử lý khi tải file văn bản hoặc CSV (.csv, .txt)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      if (content) {
+        setBatchText(content);
+        parseRawText(content);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  // Lưu danh sách vừa xử lý vào Supabase
+  const handleSaveBills = async () => {
+    if (parsedBills.length === 0) {
+      alert('Không có dữ liệu đơn hàng hợp lệ nào để thêm!');
       return;
     }
 
-    const { error } = await supabase.from('bills').insert([
-      {
-        code: newCode.trim(),
-        customer_name: newCustomerName.trim(),
-        amount: parseFloat(newAmount) || 0,
-        type: newType,
-        status: 'active'
-      }
-    ]);
+    const newBillsData = parsedBills.map((b) => ({
+      code: b.code,
+      customer_name: b.customer_name,
+      amount: b.amount,
+      type: newType,
+      status: 'active'
+    }));
+
+    const { error } = await supabase.from('bills').insert(newBillsData);
 
     if (!error) {
-      setNewCode('');
-      setNewCustomerName('');
-      setNewAmount('');
+      alert(`🎉 Thêm thành công ${newBillsData.length} đơn vào hệ thống!`);
+      setBatchText('');
+      setParsedBills([]);
       fetchBills();
-      alert('Thêm đơn thành công!');
     } else {
-      alert('Lỗi thêm mã: ' + error.message);
+      alert('Lỗi thêm danh sách đơn: ' + error.message);
     }
   };
 
@@ -258,62 +309,147 @@ export default function AdminPage() {
         </div>
       ) : (
         <>
-          {/* KHUNG THÊM ĐƠN RỘNG RÃI & RÕ RÀNG CÁC CỘT */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '20px', marginBottom: '32px' }}>
-            <form onSubmit={handleAddBill} style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-              <h4 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                ➕ Thêm Đơn Hóa Đơn Mới
-              </h4>
+          {/* KHUNG NHẬP DỮ LIỆU ĐƠN HÀNG LOẠT */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2.8fr 1.2fr', gap: '20px', marginBottom: '32px' }}>
+            <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Loại Hóa Đơn</label>
-                  <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: '#fff' }}>
+              {/* THANH TIÊU ĐỀ & CHỌN LOẠI ĐƠN */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>
+                <h4 style={{ margin: 0, fontSize: '16px', color: '#1f2937' }}>
+                  📋 Nhập Danh Sách Đơn Hàng Loạt
+                </h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>Loại đơn:</span>
+                  <select value={newType} onChange={(e) => setNewType(e.target.value)} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: '#f9fafb', fontWeight: 'bold' }}>
                     <option value="dien">⚡ Điện</option>
                     <option value="nuoc">💧 Nước</option>
                   </select>
                 </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 1: Mã Hóa Đơn (*)</label>
-                  <input
-                    type="text"
-                    placeholder="VD: PA0102030404"
-                    value={newCode}
-                    onChange={(e) => setNewCode(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 2: Tên Khách Hàng</label>
-                  <input
-                    type="text"
-                    placeholder="VD: Nguyễn Văn A"
-                    value={newCustomerName}
-                    onChange={(e) => setNewCustomerName(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#4b5563', marginBottom: '4px' }}>Cột 3: Số Tiền (VNĐ)</label>
-                  <input
-                    type="number"
-                    placeholder="VD: 500000"
-                    value={newAmount}
-                    onChange={(e) => setNewAmount(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box' }}
-                  />
-                </div>
               </div>
 
-              <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '15px', cursor: 'pointer' }}>
-                Thêm Đơn Vào Hệ Thống
-              </button>
-            </form>
+              {/* TAB CHỌN CÁCH NHẬP */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setImportMode('paste')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: importMode === 'paste' ? '#2563eb' : '#f3f4f6',
+                    color: importMode === 'paste' ? '#fff' : '#374151',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  📝 Cách 1: Copy & Dán từ Excel / Word / Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportMode('file')}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: importMode === 'file' ? '#2563eb' : '#f3f4f6',
+                    color: importMode === 'file' ? '#fff' : '#374151',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  📁 Cách 2: Tải File (.csv, .txt, .excel export)
+                </button>
+              </div>
 
-            <form onSubmit={handleChangePassword} style={{ backgroundColor: '#f9fafb', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              {/* NỘI DUNG TƯƠNG ỨNG MỖI TAB */}
+              {importMode === 'paste' ? (
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', color: '#4b5563', marginBottom: '6px' }}>
+                    Mở Excel/Word, bôi đen danh sách rồi copy dán vào ô dưới (Thứ tự: <b>Mã đơn | Tên | Số tiền</b>):
+                  </label>
+                  <textarea
+                    rows={5}
+                    placeholder={`PA01020304\tNguyễn Văn A\t500000\nPA01020305\tTrần Thị B\t250000\nPA01020306\t\t120000`}
+                    value={batchText}
+                    onChange={handleTextChange}
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '13px' }}
+                  />
+                </div>
+              ) : (
+                <div style={{ marginBottom: '16px', padding: '24px', border: '2px dashed #9ca3af', borderRadius: '8px', textAlign: 'center', backgroundColor: '#f9fafb' }}>
+                  <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#374151', fontWeight: 'bold' }}>
+                    Chọn File CSV hoặc File Text (.csv, .txt) từ máy tính
+                  </p>
+                  <input
+                    type="file"
+                    accept=".csv, .txt"
+                    onChange={handleFileUpload}
+                    style={{ fontSize: '13px' }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
+                    *Mẹo: Trong Excel, bạn bấm <b>File $\rightarrow$ Save As $\rightarrow$ chọn định dạng .CSV</b> để tải lên trực tiếp tại đây!
+                  </div>
+                </div>
+              )}
+
+              {/* BẢNG XEM TRƯỚC DỮ LIỆU ĐÃ TỰ ĐỘNG TÁCH */}
+              {parsedBills.length > 0 && (
+                <div style={{ marginTop: '16px', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ backgroundColor: '#f3f4f6', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold', color: '#1f2937' }}>
+                    👀 Đã nhận diện được ({parsedBills.length}) đơn hợp lệ:
+                  </div>
+                  <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f9fafb', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ padding: '6px 12px' }}>STT</th>
+                          <th style={{ padding: '6px 12px' }}>Mã Đơn</th>
+                          <th style={{ padding: '6px 12px' }}>Tên Khách Hàng</th>
+                          <th style={{ padding: '6px 12px' }}>Số Tiền</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedBills.map((b, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '6px 12px', color: '#6b7280' }}>{idx + 1}</td>
+                            <td style={{ padding: '6px 12px', fontWeight: 'bold' }}>{b.code}</td>
+                            <td style={{ padding: '6px 12px' }}>{b.customer_name || '---'}</td>
+                            <td style={{ padding: '6px 12px', color: '#16a34a', fontWeight: 'bold' }}>
+                              {b.amount > 0 ? b.amount.toLocaleString('vi-VN') + ' đ' : '---'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSaveBills}
+                disabled={parsedBills.length === 0}
+                style={{
+                  width: '100%',
+                  marginTop: '16px',
+                  padding: '12px',
+                  backgroundColor: parsedBills.length > 0 ? '#16a34a' : '#9ca3af',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontWeight: 'bold',
+                  fontSize: '15px',
+                  cursor: parsedBills.length > 0 ? 'pointer' : 'not-allowed'
+                }}
+              >
+                🚀 Thêm ({parsedBills.length}) Đơn Này Vào Hệ Thống
+              </button>
+            </div>
+
+            {/* ĐỔI MẬT KHẨU ADMIN */}
+            <form onSubmit={handleChangePassword} style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <h4 style={{ marginTop: 0, marginBottom: '16px', color: '#1f2937' }}>🔑 Đổi Mật Khẩu Admin</h4>
                 <input
@@ -330,6 +466,7 @@ export default function AdminPage() {
             </form>
           </div>
 
+          {/* DANH SÁCH MÃ HIỆN CÓ */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
             <button
               onClick={() => setBillType('dien')}
