@@ -14,7 +14,7 @@ interface Bill {
   image_url?: string;
   type?: string;
   amount?: number;
-  customer_name?: string;
+  owner_name?: string;
 }
 
 export default function HomePage() {
@@ -25,7 +25,6 @@ export default function HomePage() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Lấy tối đa 4 đơn hàng khả dụng (status = 'active')
   const fetchAvailableBills = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -47,9 +46,7 @@ export default function HomePage() {
     setSelectedBill(null);
   }, [billType]);
 
-  // Khi người dùng chọn 1 mã đơn cụ thể
   const handleSelectBill = async (bill: Bill) => {
-    // Đánh dấu đơn này sang pending để người khác không chọn trùng
     await supabase
       .from('bills')
       .update({ status: 'pending' })
@@ -58,7 +55,6 @@ export default function HomePage() {
     setSelectedBill(bill);
   };
 
-  // Tải bill chuyển khoản
   const handleUploadBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file || !selectedBill) {
@@ -121,7 +117,6 @@ export default function HomePage() {
         </p>
       </div>
 
-      {/* CHỌN LOẠI HÓA ĐƠN */}
       <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px auto' }}>
         <button
           onClick={() => setBillType('dien')}
@@ -157,7 +152,6 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* NẾU CHƯA CHỌN ĐƠN: HIỆN DANH SÁCH 4 ĐƠN HÀNG NGANG */}
       {!selectedBill ? (
         <div>
           <h3 style={{ fontSize: '16px', color: '#374151', marginBottom: '16px', textAlign: 'center' }}>
@@ -200,8 +194,8 @@ export default function HomePage() {
                     </div>
 
                     <div style={{ backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontSize: '13px', textAlign: 'left', marginBottom: '12px' }}>
-                      {bill.customer_name && (
-                        <div style={{ marginBottom: '4px' }}>👤 {bill.customer_name}</div>
+                      {bill.owner_name && (
+                        <div style={{ marginBottom: '4px' }}>👤 {bill.owner_name}</div>
                       )}
                       {bill.amount && bill.amount > 0 ? (
                         <div style={{ color: '#16a34a', fontWeight: 'bold' }}>
@@ -235,7 +229,6 @@ export default function HomePage() {
           )}
         </div>
       ) : (
-        /* KHUNG THANH TOÁN VÀ TẢI BILL CHO ĐƠN ĐÃ CHỌN */
         <div style={{ maxWidth: '500px', margin: '0 auto', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
           <button
             onClick={() => {
@@ -253,9 +246,9 @@ export default function HomePage() {
               {selectedBill.code}
             </div>
 
-            {(selectedBill.customer_name || (selectedBill.amount && selectedBill.amount > 0)) && (
+            {(selectedBill.owner_name || (selectedBill.amount && selectedBill.amount > 0)) && (
               <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', fontSize: '14px', textAlign: 'left' }}>
-                {selectedBill.customer_name && <div>👤 <b>Khách hàng:</b> {selectedBill.customer_name}</div>}
+                {selectedBill.owner_name && <div>👤 <b>Khách hàng:</b> {selectedBill.owner_name}</div>}
                 {selectedBill.amount && selectedBill.amount > 0 && <div>💵 <b>Số tiền:</b> {selectedBill.amount.toLocaleString('vi-VN')} VNĐ</div>}
               </div>
             )}

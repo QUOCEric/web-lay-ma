@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -13,7 +14,7 @@ interface Bill {
   image_url?: string;
   type?: string;
   amount?: number;
-  customer_name?: string;
+  owner_name?: string;
 }
 
 interface BillHistoryItem {
@@ -27,7 +28,7 @@ interface BillHistoryItem {
 
 interface ParsedBill {
   code: string;
-  customer_name: string;
+  owner_name: string;
   amount: number;
 }
 
@@ -40,7 +41,6 @@ export default function AdminPage() {
   const [historyList, setHistoryList] = useState<BillHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
-  // Chế độ nhập dữ liệu: 'paste' (Dán từ Excel/Word) hoặc 'file' (Tải File CSV/Text)
   const [importMode, setImportMode] = useState<'paste' | 'file'>('paste');
   const [batchText, setBatchText] = useState('');
   const [parsedBills, setParsedBills] = useState<ParsedBill[]>([]);
@@ -115,7 +115,6 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, billType]);
 
-  // Bộ bóc tách dữ liệu thông minh (hỗ trợ dán từ Excel, Word, Text, CSV)
   const parseRawText = (text: string) => {
     const lines = text.split('\n');
     const result: ParsedBill[] = [];
@@ -124,30 +123,26 @@ export default function AdminPage() {
       const trimmed = line.trim();
       if (!trimmed) return;
 
-      // Phân tách bởi tab (Excel copy ra), dấu phẩy (CSV), dấu chấm phẩy hoặc dấu gạch đứng (|)
       const parts = trimmed.split(/[\t,;|]+/);
       const code = parts[0] ? parts[0].trim() : '';
-      const customer_name = parts[1] ? parts[1].trim() : '';
+      const owner_name = parts[1] ? parts[1].trim() : 'Chưa cập nhật';
       const amountStr = parts[2] ? parts[2].trim().replace(/[^0-9]/g, '') : '0';
       const amount = parseInt(amountStr, 10) || 0;
 
-      // Bỏ qua tiêu đề bảng nếu có
       if (code && code.toLowerCase() !== 'mã đơn' && code.toLowerCase() !== 'ma don') {
-        result.push({ code, customer_name, amount });
+        result.push({ code, owner_name, amount });
       }
     });
 
     setParsedBills(result);
   };
 
-  // Xử lý dán văn bản
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setBatchText(val);
     parseRawText(val);
   };
 
-  // Xử lý khi tải file văn bản hoặc CSV (.csv, .txt)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -163,7 +158,6 @@ export default function AdminPage() {
     reader.readAsText(file);
   };
 
-  // Lưu danh sách vừa xử lý vào Supabase
   const handleSaveBills = async () => {
     if (parsedBills.length === 0) {
       alert('Không có dữ liệu đơn hàng hợp lệ nào để thêm!');
@@ -172,7 +166,7 @@ export default function AdminPage() {
 
     const newBillsData = parsedBills.map((b) => ({
       code: b.code,
-      customer_name: b.customer_name,
+      owner_name: b.owner_name || 'Khách hàng',
       amount: b.amount,
       type: newType,
       status: 'active'
@@ -309,11 +303,9 @@ export default function AdminPage() {
         </div>
       ) : (
         <>
-          {/* KHUNG NHẬP DỮ LIỆU ĐƠN HÀNG LOẠT */}
           <div style={{ display: 'grid', gridTemplateColumns: '2.8fr 1.2fr', gap: '20px', marginBottom: '32px' }}>
             <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               
-              {/* THANH TIÊU ĐỀ & CHỌN LOẠI ĐƠN */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>
                 <h4 style={{ margin: 0, fontSize: '16px', color: '#1f2937' }}>
                   📋 Nhập Danh Sách Đơn Hàng Loạt
@@ -327,7 +319,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* TAB CHỌN CÁCH NHẬP */}
               <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
                 <button
                   type="button"
@@ -359,11 +350,10 @@ export default function AdminPage() {
                     fontSize: '13px'
                   }}
                 >
-                  📁 Cách 2: Tải File (.csv, .txt, .excel export)
+                  📁 Cách 2: Tải File (.csv, .txt)
                 </button>
               </div>
 
-              {/* NỘI DUNG TƯƠNG ỨNG MỖI TAB */}
               {importMode === 'paste' ? (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', color: '#4b5563', marginBottom: '6px' }}>
@@ -371,7 +361,7 @@ export default function AdminPage() {
                   </label>
                   <textarea
                     rows={5}
-                    placeholder={`PA01020304\tNguyễn Văn A\t500000\nPA01020305\tTrần Thị B\t250000\nPA01020306\t\t120000`}
+                    placeholder={`PA01020304 | Nguyễn Văn An | 350000\nPA01020305 | Trần Thị B | 520000`}
                     value={batchText}
                     onChange={handleTextChange}
                     style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #d1d5db', boxSizing: 'border-box', fontFamily: 'monospace', fontSize: '13px' }}
@@ -379,22 +369,15 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div style={{ marginBottom: '16px', padding: '24px', border: '2px dashed #9ca3af', borderRadius: '8px', textAlign: 'center', backgroundColor: '#f9fafb' }}>
-                  <p style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#374151', fontWeight: 'bold' }}>
-                    Chọn File CSV hoặc File Text (.csv, .txt) từ máy tính
-                  </p>
                   <input
                     type="file"
                     accept=".csv, .txt"
                     onChange={handleFileUpload}
                     style={{ fontSize: '13px' }}
                   />
-                  <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-                    *Mẹo: Trong Excel, bạn bấm <b>File $\rightarrow$ Save As $\rightarrow$ chọn định dạng .CSV</b> để tải lên trực tiếp tại đây!
-                  </div>
                 </div>
               )}
 
-              {/* BẢNG XEM TRƯỚC DỮ LIỆU ĐÃ TỰ ĐỘNG TÁCH */}
               {parsedBills.length > 0 && (
                 <div style={{ marginTop: '16px', border: '1px solid #e5e7eb', borderRadius: '6px', overflow: 'hidden' }}>
                   <div style={{ backgroundColor: '#f3f4f6', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold', color: '#1f2937' }}>
@@ -415,7 +398,7 @@ export default function AdminPage() {
                           <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
                             <td style={{ padding: '6px 12px', color: '#6b7280' }}>{idx + 1}</td>
                             <td style={{ padding: '6px 12px', fontWeight: 'bold' }}>{b.code}</td>
-                            <td style={{ padding: '6px 12px' }}>{b.customer_name || '---'}</td>
+                            <td style={{ padding: '6px 12px' }}>{b.owner_name}</td>
                             <td style={{ padding: '6px 12px', color: '#16a34a', fontWeight: 'bold' }}>
                               {b.amount > 0 ? b.amount.toLocaleString('vi-VN') + ' đ' : '---'}
                             </td>
@@ -448,7 +431,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* ĐỔI MẬT KHẨU ADMIN */}
             <form onSubmit={handleChangePassword} style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '10px', border: '1px solid #d1d5db', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <h4 style={{ marginTop: 0, marginBottom: '16px', color: '#1f2937' }}>🔑 Đổi Mật Khẩu Admin</h4>
@@ -466,7 +448,6 @@ export default function AdminPage() {
             </form>
           </div>
 
-          {/* DANH SÁCH MÃ HIỆN CÓ */}
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginBottom: '24px' }}>
             <button
               onClick={() => setBillType('dien')}
@@ -528,9 +509,9 @@ export default function AdminPage() {
                       {isUsed && <span style={{ fontSize: '12px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 8px', borderRadius: '4px' }}>Hoàn tất</span>}
                     </div>
 
-                    {(bill.customer_name || bill.amount) && (
+                    {(bill.owner_name || bill.amount) && (
                       <div style={{ backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '6px', fontSize: '13px', marginBottom: '8px' }}>
-                        {bill.customer_name && <div>👤 <b>Khách hàng:</b> {bill.customer_name}</div>}
+                        {bill.owner_name && <div>👤 <b>Khách hàng:</b> {bill.owner_name}</div>}
                         {bill.amount && bill.amount > 0 && <div>💵 <b>Số tiền:</b> {bill.amount.toLocaleString('vi-VN')} VNĐ</div>}
                       </div>
                     )}
@@ -544,7 +525,6 @@ export default function AdminPage() {
                             style={{ width: '100%', maxHeight: '150px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #ddd' }}
                           />
                         </a>
-                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Bấm vào ảnh để xem kích thước lớn</div>
                       </div>
                     ) : (
                       <div style={{ fontSize: '13px', color: '#9ca3af', fontStyle: 'italic', margin: '12px 0' }}>
@@ -568,7 +548,7 @@ export default function AdminPage() {
                           onClick={() => handleRejectBill(bill.id)}
                           style={{ flex: 1, padding: '8px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}
                         >
-                          ✕ Từ Chối (Giả)
+                          ✕ Từ Chối
                         </button>
                       </div>
                     )}
