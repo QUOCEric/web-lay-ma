@@ -55,7 +55,30 @@ export default function AdminPage() {
       setIsAuthenticated(true);
     }
   };
-const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+
+  const parseRawText = (text: string) => {
+    const lines = text.split('\n');
+    const result: ParsedBill[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[\t,;|]+/);
+      const code = parts[0] ? parts[0].trim() : '';
+      const owner_name = parts[1] ? parts[1].trim() : 'Chưa cập nhật';
+      const amountStr = parts[2] ? parts[2].trim().replace(/[^0-9]/g, '') : '0';
+      const amount = parseInt(amountStr, 10) || 0;
+
+      if (code && code.toLowerCase() !== 'mã đơn' && code.toLowerCase() !== 'ma don') {
+        result.push({ code, owner_name, amount });
+      }
+    });
+
+    setParsedBills(result);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = e.target.files?.[0];
     if (!uploadedFile) return;
 
@@ -64,13 +87,12 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const text = event.target?.result as string;
       if (text) {
         setBatchText(text);
-        if (typeof parseRawText === 'function') {
-          parseRawText(text);
-        }
+        parseRawText(text);
       }
     };
     reader.readAsText(uploadedFile);
   };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.from('settings').select('value').eq('key', 'admin_password').single();
@@ -145,28 +167,6 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       };
     }
   }, [isAuthenticated, billType, billingMonth]);
-
-  const parseRawText = (text: string) => {
-    const lines = text.split('\n');
-    const result: ParsedBill[] = [];
-
-    lines.forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-
-      const parts = trimmed.split(/[\t,;|]+/);
-      const code = parts[0] ? parts[0].trim() : '';
-      const owner_name = parts[1] ? parts[1].trim() : 'Chưa cập nhật';
-      const amountStr = parts[2] ? parts[2].trim().replace(/[^0-9]/g, '') : '0';
-      const amount = parseInt(amountStr, 10) || 0;
-
-      if (code && code.toLowerCase() !== 'mã đơn' && code.toLowerCase() !== 'ma don') {
-        result.push({ code, owner_name, amount });
-      }
-    });
-
-    setParsedBills(result);
-  };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -266,9 +266,6 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     );
   }
 
-  const activeBills = bills.filter(b => b.status !== 'used');
-  const usedBills = bills.filter(b => b.status === 'used');
-
   return (
     <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
@@ -340,15 +337,17 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
                   />
                 </div>
               </div>
-<div style={{ marginBottom: '10px' }}>
-  <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Tải file (CSV/TXT):</label>
-  <input
-    type="file"
-    accept=".csv, .txt"
-    onChange={handleFileUpload}
-    style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', backgroundColor: '#f9fafb' }}
-  />
-</div>
+
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Tải file (CSV/TXT):</label>
+                <input
+                  type="file"
+                  accept=".csv, .txt"
+                  onChange={handleFileUpload}
+                  style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', backgroundColor: '#f9fafb' }}
+                />
+              </div>
+
               <textarea
                 rows={3}
                 placeholder={`Mã | Tên khách | Số tiền\nPA12345 | Nguyễn Văn A | 250000`}
@@ -399,139 +398,107 @@ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
               />
             </div>
           </div>
-{/* 📦 BẢNG QUẢN LÝ KHO MÃ VÀ BẬT/TẮT SỐNG CHẾT */}
+
+          {/* 📦 BẢNG QUẢN LÝ KHO MÃ VÀ BẬT/TẮT SỐNG CHẾT */}
           <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: '#111827' }}>📦 Quản Lý Kho Mã Dịch Vụ ({billType.toUpperCase()})</h3>
               <span style={{ fontSize: '13px', color: '#6b7280' }}>Tổng số: {bills.length} mã</span>
             </div>
 
-            <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-                <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
-                  <tr>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Mã Đơn</th>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Tên Khách</th>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Số Tiền</th>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Kỳ Tháng</th>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>Trạng Thái Sống/Chết</th>
-                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bills.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>Không có mã nào trong kho kỳ này.</td>
+            {bills.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>Chưa có mã hóa đơn nào trong kỳ này.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                      <th style={{ padding: '10px' }}>ID</th>
+                      <th style={{ padding: '10px' }}>Mã Hóa Đơn</th>
+                      <th style={{ padding: '10px' }}>Khách Hàng</th>
+                      <th style={{ padding: '10px' }}>Số Tiền</th>
+                      <th style={{ padding: '10px' }}>Trạng Thái</th>
+                      <th style={{ padding: '10px' }}>Ảnh Bill</th>
+                      <th style={{ padding: '10px', textAlign: 'center' }}>Hiển Thị (Khách Thấy)</th>
+                      <th style={{ padding: '10px', textAlign: 'center' }}>Hành Động</th>
                     </tr>
-                  ) : (
-                    bills.map((bill) => (
-                      <tr key={bill.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#2563eb' }}>{bill.code}</td>
-                        <td style={{ padding: '10px' }}>{bill.owner_name}</td>
-                        <td style={{ padding: '10px', color: '#16a34a', fontWeight: 'bold' }}>{bill.amount?.toLocaleString('vi-VN')} đ</td>
-                        <td style={{ padding: '10px' }}>{bill.billing_month}</td>
+                  </thead>
+                  <tbody>
+                    {bills.map((bill) => (
+                      <tr key={bill.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: bill.status === 'pending' ? '#fef3c7' : 'transparent' }}>
+                        <td style={{ padding: '10px' }}>#{bill.id}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold' }}>
+                          {bill.code}
+                          <button onClick={() => handleCopyCode(bill.code)} style={{ marginLeft: '6px', fontSize: '10px', cursor: 'pointer' }}>📋</button>
+                        </td>
+                        <td style={{ padding: '10px' }}>{bill.owner_name || 'Chưa cập nhật'}</td>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#0f766e' }}>
+                          {bill.amount ? `${bill.amount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                        </td>
+                        <td style={{ padding: '10px' }}>
+                          {bill.status === 'active' && <span style={{ color: '#2563eb', fontWeight: 'bold' }}>Sẵn sàng</span>}
+                          {bill.status === 'processing' && <span style={{ color: '#d97706', fontWeight: 'bold' }}>Đang xử lý</span>}
+                          {bill.status === 'pending' && <span style={{ color: '#ea580c', fontWeight: 'bold' }}>Đã gửi bill ⏳</span>}
+                          {bill.status === 'used' && <span style={{ color: '#16a34a', fontWeight: 'bold' }}>Đã hoàn thành ✅</span>}
+                        </td>
+                        <td style={{ padding: '10px' }}>
+                          {bill.image_url ? (
+                            <a href={bill.image_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>
+                              Xem ảnh 🖼️
+                            </a>
+                          ) : (
+                            <span style={{ color: '#9ca3af' }}>Không có</span>
+                          )}
+                        </td>
                         <td style={{ padding: '10px', textAlign: 'center' }}>
                           <button
                             onClick={() => handleToggleValid(bill.id, bill.is_valid ?? true)}
                             style={{
-                              padding: '4px 10px',
+                              padding: '4px 8px',
                               borderRadius: '4px',
                               border: 'none',
-                              fontSize: '12px',
+                              fontSize: '11px',
                               fontWeight: 'bold',
                               cursor: 'pointer',
-                              backgroundColor: bill.is_valid !== false ? '#dcfce7' : '#fee2e2',
-                              color: bill.is_valid !== false ? '#16a34a' : '#dc2626'
+                              backgroundColor: bill.is_valid ? '#dcfce7' : '#fee2e2',
+                              color: bill.is_valid ? '#166534' : '#991b1b',
                             }}
                           >
-                            {bill.is_valid !== false ? '✅ Đang Sống' : '❌ Đã Tắt (Chết)'}
+                            {bill.is_valid ? '🟢 Đang bật' : '🔴 Đã tắt'}
                           </button>
                         </td>
                         <td style={{ padding: '10px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => handleDeleteBill(bill.id)}
-                            style={{ padding: '4px 8px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
-                          >
-                            🗑️ Xóa
-                          </button>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            {bill.status === 'pending' && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveBill(bill.id)}
+                                  style={{ padding: '4px 8px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                >
+                                  Duyệt
+                                </button>
+                                <button
+                                  onClick={() => handleRejectBill(bill.id)}
+                                  style={{ padding: '4px 8px', backgroundColor: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                                >
+                                  Từ chối
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => handleDeleteBill(bill.id)}
+                              style={{ padding: '4px 8px', backgroundColor: '#6b7280', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                            >
+                              Xóa
+                            </button>
+                          </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <h3 style={{ fontSize: '16px', color: '#111827', borderBottom: '2px solid #2563eb', paddingBottom: '4px', marginBottom: '16px' }}>
-            ⏳ Đơn Hàng Đang Xử Lý & Chờ Duyệt ({activeBills.length})
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px', marginBottom: '32px' }}>
-            {activeBills.length === 0 ? (
-              <p style={{ color: '#6b7280', gridColumn: '1 / -1' }}>Không có đơn nào.</p>
-            ) : (
-              activeBills.map((bill) => (
-                <div key={bill.id} style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#2563eb' }}>{bill.code}</span>
-                    <button
-                      onClick={() => handleToggleValid(bill.id, bill.is_valid ?? true)}
-                      style={{ fontSize: '11px', padding: '2px 6px', backgroundColor: bill.is_valid !== false ? '#dcfce7' : '#fee2e2', color: bill.is_valid !== false ? '#16a34a' : '#dc2626', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      {bill.is_valid !== false ? '✅ Mã Sống' : '❌ Mã Lỗi/Chết'}
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: '13px', backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '8px' }}>
-                    <div>👤 {bill.owner_name}</div>
-                    <div style={{ color: '#16a34a', fontWeight: 'bold' }}>💵 {bill.amount?.toLocaleString('vi-VN')} VNĐ</div>
-                    <div style={{ fontSize: '11px', color: '#64748b' }}>📅 Kỳ: {bill.billing_month}</div>
-                  </div>
-
-                  {bill.image_url ? (
-                    <div style={{ margin: '8px 0', textAlign: 'center' }}>
-                      <a href={bill.image_url} target="_blank" rel="noreferrer">
-                        <img src={bill.image_url} alt="Bill" style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #ddd' }} />
-                      </a>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: '#9ca3af', fontStyle: 'italic', margin: '8px 0' }}>Chưa nộp bill</div>
-                  )}
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
-                    {bill.image_url && (
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => handleApproveBill(bill.id)} style={{ flex: 1, padding: '6px', backgroundColor: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>✓ Duyệt</button>
-                        <button onClick={() => handleRejectBill(bill.id)} style={{ flex: 1, padding: '6px', backgroundColor: '#d97706', color: '#fff', border: 'none', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px', cursor: 'pointer' }}>✕ Từ Chối</button>
-                      </div>
-                    )}
-                    <button onClick={() => handleDeleteBill(bill.id)} style={{ width: '100%', padding: '4px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>🗑️ Xóa</button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <h3 style={{ fontSize: '16px', color: '#111827', borderBottom: '2px solid #16a34a', paddingBottom: '4px', marginBottom: '16px' }}>
-            ✅ Đơn Hàng Đã Hoàn Thành ({usedBills.length})
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-            {usedBills.map((bill) => (
-              <div key={bill.id} style={{ backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 'bold' }}>{bill.code}</span>
-                  <span style={{ fontSize: '11px', color: '#dc2626', backgroundColor: '#fee2e2', padding: '2px 6px', borderRadius: '4px' }}>Đã đóng</span>
-                </div>
-                <div style={{ fontSize: '13px', marginBottom: '8px' }}>
-                  👤 {bill.owner_name} - <b>{bill.amount?.toLocaleString('vi-VN')} đ</b>
-                </div>
-                {bill.image_url && (
-                  <a href={bill.image_url} target="_blank" rel="noreferrer">
-                    <img src={bill.image_url} alt="Bill" style={{ width: '100%', maxHeight: '90px', objectFit: 'cover', borderRadius: '4px', marginBottom: '8px' }} />
-                  </a>
-                )}
-                <button onClick={() => handleDeleteBill(bill.id)} style={{ width: '100%', padding: '4px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>🗑️ Xóa</button>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ))}
+            )}
           </div>
         </>
       )}
