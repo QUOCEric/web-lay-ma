@@ -49,9 +49,9 @@ export default function AdminPage() {
   const [newType, setNewType] = useState('dien');
   const [newPassword, setNewPassword] = useState('');
 
-  // State popup đối soát nợ (mở tab mới thay vì dùng iframe bị chặn)
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [selectedBillForCheck, setSelectedBillForCheck] = useState<Bill | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<string>('bac');
 
   const handleOpenCheckSystem = (bill: Bill) => {
     setSelectedBillForCheck(bill);
@@ -255,6 +255,23 @@ export default function AdminPage() {
     }
   };
 
+  const getCheckUrl = () => {
+    if (!selectedBillForCheck) return '#';
+    const type = selectedBillForCheck.type;
+
+    if (type === 'dien') {
+      if (selectedRegion === 'bac') return 'https://cskh.npc.com.vn';
+      if (selectedRegion === 'trung') return 'https://cskh.cpc.vn';
+      return 'https://cskh.hcmpc.com.vn'; // Nam
+    } else if (type === 'nuoc') {
+      if (selectedRegion === 'bac') return 'https://cskh.hawaco.vn';
+      if (selectedRegion === 'trung') return 'https://cskh.huevacowater.vn';
+      return 'https://cskh.sawaco.com.vn'; // Nam
+    } else {
+      return 'https://viettel.vn';
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', fontFamily: 'sans-serif', backgroundColor: '#f3f4f6' }}>
@@ -390,7 +407,6 @@ export default function AdminPage() {
             </form>
           </div>
 
-          {/* Thanh chọn loại dịch vụ và kỳ xem */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button onClick={() => setBillType('dien')} style={{ padding: '8px 16px', borderRadius: '6px', border: 'none', backgroundColor: billType === 'dien' ? '#2563eb' : '#e2e8f0', color: billType === 'dien' ? '#fff' : '#334155', fontWeight: 'bold', cursor: 'pointer' }}>⚡ Điện</button>
@@ -408,7 +424,6 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* 📦 BẢNG QUẢN LÝ KHO MÃ VÀ BẬT/TẮT SỐNG CHẾT */}
           <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: '#111827' }}>📦 Quản Lý Kho Mã Dịch Vụ ({billType.toUpperCase()})</h3>
@@ -478,7 +493,6 @@ export default function AdminPage() {
                         </td>
                         <td style={{ padding: '10px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
-                            {/* Nút bấm Check Web đối soát nhanh */}
                             <button
                               onClick={() => handleOpenCheckSystem(bill)}
                               style={{ padding: '4px 8px', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
@@ -520,12 +534,10 @@ export default function AdminPage() {
         </>
       )}
 
-      {/* Cửa sổ Popup Hỗ trợ tra cứu nhanh & Copy mã (Tránh lỗi chặn iframe của EVN/Ngân hàng) */}
       {isCheckModalOpen && selectedBillForCheck && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
           <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '12px', width: '480px', maxWidth: '90%', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
             
-            {/* Header Modal */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '16px', color: '#111827' }}>
                 🔍 Tra Cứu Nhanh Hóa Đơn
@@ -538,7 +550,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Thông tin đơn */}
             <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
               <p style={{ margin: '0 0 6px 0', fontSize: '13px' }}><b>Khách hàng:</b> {selectedBillForCheck.owner_name}</p>
               <p style={{ margin: '0 0 6px 0', fontSize: '13px' }}><b>Số tiền:</b> <span style={{ color: '#0f766e', fontWeight: 'bold' }}>{selectedBillForCheck.amount?.toLocaleString('vi-VN')} đ</span></p>
@@ -546,7 +557,33 @@ export default function AdminPage() {
               <p style={{ margin: '0', fontSize: '13px' }}><b>Loại:</b> {selectedBillForCheck.type?.toUpperCase()}</p>
             </div>
 
-            {/* Mã cần copy */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '6px', color: '#374151' }}>Chọn khu vực tra cứu:</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedRegion('bac')}
+                  style={{ flex: 1, padding: '6px', fontSize: '12px', borderRadius: '4px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: selectedRegion === 'bac' ? '#2563eb' : '#e2e8f0', color: selectedRegion === 'bac' ? '#fff' : '#334155' }}
+                >
+                  Miền Bắc
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedRegion('trung')}
+                  style={{ flex: 1, padding: '6px', fontSize: '12px', borderRadius: '4px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: selectedRegion === 'trung' ? '#2563eb' : '#e2e8f0', color: selectedRegion === 'trung' ? '#fff' : '#334155' }}
+                >
+                  Miền Trung
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedRegion('nam')}
+                  style={{ flex: 1, padding: '6px', fontSize: '12px', borderRadius: '4px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: selectedRegion === 'nam' ? '#2563eb' : '#e2e8f0', color: selectedRegion === 'nam' ? '#fff' : '#334155' }}
+                >
+                  Miền Nam
+                </button>
+              </div>
+            </div>
+
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '6px', color: '#374151' }}>Mã hóa đơn (Click để copy):</label>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -565,11 +602,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ fontSize: '12px', color: '#6b7280', lineHeight: '1.5', marginBottom: '20px' }}>
-              ℹ️ <i>Do trang chính thức của EVN/Ngân hàng bảo mật chặn không cho nhúng hiển thị trực tiếp trong web, bạn vui lòng bấm nút bên dưới để mở trang tra cứu ở tab mới, dán mã vừa copy để kiểm tra công nợ nhé!</i>
-            </div>
-
-            {/* Nút thao tác */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
                 onClick={() => setIsCheckModalOpen(false)}
@@ -578,15 +610,12 @@ export default function AdminPage() {
                 Đóng
               </button>
               <a 
-                href={
-                  selectedBillForCheck.type === 'dien' ? 'https://cskh.evn.com.vn' : 
-                  selectedBillForCheck.type === 'nuoc' ? 'https://cskh.watergov.vn' : 'https://viettel.vn'
-                } 
+                href={getCheckUrl()} 
                 target="_blank" 
                 rel="noreferrer"
                 style={{ flex: 1, padding: '10px', backgroundColor: '#16a34a', color: '#fff', textAlign: 'center', borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                🌐 Mở Trang Tra Cứu
+                🌐 Mở Cổng Tra Cứu
               </a>
             </div>
 
