@@ -259,6 +259,9 @@ export default function AdminPage() {
     if (!selectedBillForCheck) return '#';
     const type = selectedBillForCheck.type;
 
+    // Tự động copy mã vào bộ nhớ tạm luôn khi bấm mở link
+    navigator.clipboard.writeText(selectedBillForCheck.code);
+
     if (type === 'dien') {
       if (selectedRegion === 'bac') return 'https://cskh.npc.com.vn';
       if (selectedRegion === 'trung') return 'https://cskh.cpc.vn';
@@ -602,21 +605,26 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                onClick={() => setIsCheckModalOpen(false)}
-                style={{ flex: 1, padding: '10px', backgroundColor: '#e5e7eb', color: '#334155', borderRadius: '6px', border: 'none', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
-              >
-                Đóng
-              </button>
-              <a 
-                href={getCheckUrl()} 
-                target="_blank" 
-                rel="noreferrer"
-                style={{ flex: 1, padding: '10px', backgroundColor: '#16a34a', color: '#fff', textAlign: 'center', borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                🌐 Mở Cổng Tra Cứu
-              </a>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  onClick={() => setIsCheckModalOpen(false)}
+                  style={{ flex: 1, padding: '10px', backgroundColor: '#e5e7eb', color: '#334155', borderRadius: '6px', border: 'none', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  Đóng
+                </button>
+                <a 
+                  href={getCheckUrl()} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  style={{ flex: 1, padding: '10px', backgroundColor: '#16a34a', color: '#fff', textAlign: 'center', borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  🌐 Mở Web & Tự Động Copy Mã
+                </a>
+              </div>
+              <p style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center', margin: '4px 0 0 0' }}>
+                💡 Khi bấm nút trên, mã <b style={{color: '#2563eb'}}>{selectedBillForCheck.code}</b> đã được copy sẵn. Sang web bạn chỉ cần ấn <b>Ctrl + V</b> là xong!
+              </p>
             </div>
 
           </div>
