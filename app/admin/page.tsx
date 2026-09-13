@@ -1,362 +1,486 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// Khởi tạo Supabase client (Thay bằng cấu hình thực tế của bạn)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const REGIONS = [
-  { name: 'EVN Miền Bắc', url: 'https://cskh.npc.com.vn' },
-  { name: 'EVN Miền Trung', url: 'https://cskh.cpc.vn' },
-  { name: 'EVN Miền Nam', url: 'https://cskh.evnspc.vn' },
-  { name: 'EVN Hà Nội', url: 'https://evnhanoi.vn' },
-  { name: 'EVN TP.HCM', url: 'https://cskh.evnhcmc.vn' },
-  { name: 'Cấp Nước', url: 'https://www.google.com/search?q=tra+cuu+tien+nuoc' },
+// Danh sách các nhà cung cấp cho tab "Tra cứu nhanh"
+const PROVIDERS = [
+  { id: 'evn_bac', name: 'EVN Miền Bắc (cskh.npc.com.vn)', url: 'https://cskh.npc.com.vn/' },
+  { id: 'evn_trung', name: 'EVN Miền Trung (cskh.cpc.vn)', url: 'https://cskh.cpc.vn/' },
+  { id: 'evn_nam', name: 'EVN Miền Nam (cskh.evnspc.vn)', url: 'https://cskh.evnspc.vn/' },
+  { id: 'evn_hanoi', name: 'EVN Hà Nội (evnhanoi.vn)', url: 'https://cskh.evnhanoi.vn/' },
+  { id: 'evn_hcm', name: 'EVN TP.HCM (cskh.evnhcmc.vn)', url: 'https://cskh.evnhcmc.vn/' },
+  { id: 'cap_nuoc', name: 'Cấp Nước (Tùy chọn)', url: '#' },
 ];
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
+  const [activeTab, setActiveTab] = useState<'bills' | 'quick_lookup' | 'settings'>('bills');
+  
+  // State Quản lý hóa đơn & Kỳ cước
   const [bills, setBills] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState('bills'); // 'bills' hoặc 'lookup'
-  const [filter, setFilter] = useState('all'); // all, pending, completed, error
-  const [batchData, setBatchData] = useState('');
-  const [currentPeriod, setCurrentPeriod] = useState('2026-09');
   const [loading, setLoading] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [lookupCode, setLookupCode] = useState('');
+  const currentMonthDefault = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const [selectedBillingPeriod, setSelectedBillingPeriod] = useState(currentMonthDefault);
+  
+  // State Bulk Import
+  const [rawImportText, setRawImportText] = useState('');
+  const [importReport, setImportReport] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPassword === 'admin123') {
-      setIsAuthenticated(true);
-      fetchBills();
-    } else {
-      alert('Mật khẩu không chính xác!');
+  // State Tra cứu nhanh
+  const [lookupCode, setLookupCode] = useState('');
+  const [lastSelectedProvider, setLastSelectedProvider] = useState<string>('evn_bac');
+  const [checkedProviders, setCheckedProviders] = useState<Record<string, boolean>>({});
+
+  // State Modal Lỗi & Undo
+  const [errorModalOpen, setErrorModalOpen] = useState(false);
+  const [selectedBillForError, setSelectedBillForError] = useState<any>(null);
+  const [errorReason, setErrorReason] = useState('Đã thanh toán trước');
+  const [toastMessage, setToastMessage] = useState<{ text: string; undoData?: any } | null>(null);
+
+  // Load localStorage cho tra cứu nhanh
+  useEffect(() => {
+    const savedProvider = localStorage.getItem('last_provider');
+    if (savedProvider) setLastSelectedProvider(savedProvider);
+    fetchBills();
+  }, [selectedBillingPeriod]);
+
+  // Phím tắt bàn phím cho Tra cứu nhanh (Alt + 1, 2, 3...)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTab === 'quick_lookup' && e.altKey) {
+        const index = parseInt(e.key) - 1;
+        if (PROVIDERS[index]) {
+          e.preventDefault();
+          handleQuickLookupAction(PROVIDERS[index]);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, lookupCode]);
+
+  // Tự động ẩn Toast sau 4 giây
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 4000);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [toastMessage]);
 
   const fetchBills = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('bills')
       .select('*')
+      .eq('billing_period', selectedBillingPeriod)
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Lỗi tải dữ liệu:', error);
-    } else {
-      setBills(data || []);
+    if (!error && data) {
+      setBills(data);
     }
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'bills' },
-        (payload: any) => {
-          if (payload.eventType === 'INSERT') {
-            setBills((prev) => [payload.new, ...prev]);
-          } else if (payload.eventType === 'UPDATE') {
-            setBills((prev) =>
-              prev.map((item) => (item.id === payload.new.id ? payload.new : item))
-            );
-          } else if (payload.eventType === 'DELETE') {
-            setBills((prev) => prev.filter((item) => item.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [isAuthenticated]);
-
-  // Nhập liệu hàng loạt (Bulk Import) & Lọc trùng
-  const handleBatchImport = async () => {
-    if (!batchData.trim()) return;
-
-    const rows = batchData.trim().split('\n');
-    const parsedRows = rows.map((row) => {
-      const [code, customer_name, amount] = row.split(',').map((item) => item.trim());
-      return {
-        code,
-        customer_name,
-        amount: parseFloat(amount) || 0,
-        billing_period: currentPeriod,
-        status: 'pending',
-      };
-    }).filter(item => item.code);
-
-    const uniqueMap = new Map();
-    parsedRows.forEach(item => {
-      const uniqueKey = `${item.code}_${item.billing_period}`;
-      if (!uniqueMap.has(uniqueKey)) {
-        uniqueMap.set(uniqueKey, item);
-      }
-    });
-    const cleanRecords = Array.from(uniqueMap.values());
-
+  // Xử lý nạp dữ liệu hàng loạt thông minh (Bulk Import + Lọc trùng)
+  const handleBulkImport = async () => {
+    if (!rawImportText.trim()) return;
     setLoading(true);
-    const { error } = await supabase.from('bills').insert(cleanRecords);
+
+    // 1. Tách dòng, loại bỏ khoảng trắng thừa (trim) và lọc bỏ dòng trống
+    const lines = rawImportText
+      .split('\n')
+      .map(item => item.trim())
+      .filter(item => item.length > 0);
+
+    // 2. Lọc bỏ mã trùng lặp ngay trong danh sách vừa dán thô (dùng Set)
+    const uniqueCodesInText = Array.from(new Set(lines));
+    const duplicateInTextCount = lines.length - uniqueCodesInText.length;
+
+    // 3. Kiểm tra trùng với database trong kỳ cước hiện tại
+    const { data: existingBills } = await supabase
+      .from('bills')
+      .select('customer_code')
+      .eq('billing_period', selectedBillingPeriod);
+
+    const existingCodesSet = new Set(existingBills?.map(b => b.customer_code) || []);
+
+    const finalCodesToInsert = uniqueCodesInText.filter(code => !existingCodesSet.has(code));
+    const duplicateInDbCount = uniqueCodesInText.length - finalCodesToInsert.length;
+
+    if (finalCodesToInsert.length === 0) {
+      setImportReport(`⚠️ Không có mã nào được thêm. Tất cả ${lines.length} mã đều bị trùng lặp trong danh sách hoặc đã tồn tại ở kỳ cước ${selectedBillingPeriod}.`);
+      setLoading(false);
+      return;
+    }
+
+    // Tiến hành insert vào Supabase
+    const payload = finalCodesToInsert.map(code => ({
+      customer_code: code,
+      billing_period: selectedBillingPeriod,
+      status: 'pending',
+      amount: 0
+    }));
+
+    const { error } = await supabase.from('bills').insert(payload);
 
     if (error) {
-      alert('Lỗi nhập dữ liệu (Có thể bị trùng mã trong cùng kỳ cước): ' + error.message);
+      alert('Lỗi khi nạp dữ liệu: ' + error.message);
     } else {
-      alert(`Nhập thành công ${cleanRecords.length} bản ghi cho kỳ ${currentPeriod}!`);
-      setBatchData('');
+      setImportReport(`✅ Đã nạp thành công ${finalCodesToInsert.length} mã. (Loại bỏ ${duplicateInTextCount} mã trùng trong bản sao, ${duplicateInDbCount} mã đã có sẵn trên hệ thống tháng này).`);
+      setRawImportText('');
       fetchBills();
     }
     setLoading(false);
   };
 
-  const updateStatus = async (id: string, status: string) => {
-    const { error } = await supabase
-      .from('bills')
-      .update({ status })
-      .eq('id', id);
-
-    if (error) {
-      alert('Lỗi cập nhật trạng thái: ' + error.message);
-    }
-  };
-
-  const handleDeleteBill = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa vĩnh viễn mã này khỏi hệ thống?')) return;
-    const { error } = await supabase.from('bills').delete().eq('id', id);
-    if (error) {
-      alert('Lỗi xóa mã: ' + error.message);
-    } else {
-      setBills(prev => prev.filter(item => item.id !== id));
-    }
-  };
-
-  const handleQuickLookupAction = (regionUrl: string) => {
+  // Thao tác 1 chạm trong Tab Tra cứu nhanh
+  const handleQuickLookupAction = (provider: typeof PROVIDERS[0]) => {
     if (!lookupCode.trim()) {
-      alert('Vui lòng nhập hoặc dán mã trước!');
+      alert('Vui lòng nhập hoặc dán mã cần tra cứu trước!');
       return;
     }
+
+    // 1. Copy mã vào bộ nhớ tạm (Clipboard)
     navigator.clipboard.writeText(lookupCode.trim());
-    window.open(regionUrl, '_blank');
+
+    // 2. Lưu lại lựa chọn gần nhất
+    setLastSelectedProvider(provider.id);
+    localStorage.setItem('last_provider', provider.id);
+
+    // 3. Đánh dấu khu vực này đã được kiểm tra
+    setCheckedProviders(prev => ({ ...prev, [provider.id]: true }));
+
+    // 4. Mở tab mới dẫn tới cổng tra cứu
+    if (provider.url !== '#') {
+      window.open(provider.url, '_blank');
+    }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div style={{ maxWidth: '400px', margin: '100px auto', padding: '20px', border: '1px solid #ccc', borderRadius: '8px', fontFamily: 'sans-serif' }}>
-        <h2>Đăng nhập trang Admin</h2>
-        <form onSubmit={handleLogin}>
-          <input
-            type="password"
-            placeholder="Nhập mật khẩu admin..."
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box' }}
-          />
-          <button type="submit" style={{ width: '100%', padding: '10px', background: '#0070f3', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-            Đăng nhập
-          </button>
-        </form>
-      </div>
-    );
-  }
+  // Đánh dấu lỗi / Đã thanh toán trước (Mở Modal chọn lý do)
+  const openErrorModal = (bill: any) => {
+    setSelectedBillForError(bill);
+    setErrorModalOpen(true);
+  };
 
-  const filteredBills = bills.filter((inv) => {
-    if (filter === 'pending') return inv.status === 'pending';
-    if (filter === 'completed') return inv.status === 'completed';
-    if (filter === 'error') return inv.status === 'error';
-    return true;
-  });
+  const confirmMarkAsError = async () => {
+    if (!selectedBillForError) return;
 
-  const pendingCount = bills.filter(i => i.status === 'pending').length;
-  const completedCount = bills.filter(i => i.status === 'completed').length;
-  const errorCount = bills.filter(i => i.status === 'error').length;
+    const previousStatus = selectedBillForError.status;
+    const billId = selectedBillForError.id;
+
+    const { error } = await supabase
+      .from('bills')
+      .update({ status: 'error', error_reason: errorReason })
+      .eq('id', billId);
+
+    if (!error) {
+      setErrorModalOpen(false);
+      fetchBills();
+      // Hiển thị thông báo có nút Hoàn tác (Undo)
+      setToastMessage({
+        text: `Đã đánh dấu lỗi (${errorReason}) cho mã ${selectedBillForError.customer_code}.`,
+        undoData: { id: billId, status: previousStatus }
+      });
+    } else {
+      alert('Lỗi cập nhật: ' + error.message);
+    }
+  };
+
+  // Tính năng Hoàn tác (Undo) trạng thái
+  const handleUndo = async () => {
+    if (!toastMessage?.undoData) return;
+    const { id, status } = toastMessage.undoData;
+
+    const { error } = await supabase
+      .from('bills')
+      .update({ status: status, error_reason: null })
+      .eq('id', id);
+
+    if (!error) {
+      setToastMessage(null);
+      fetchBills();
+    }
+  };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h1>Quản lý Hóa đơn Điện / Nước & Tra cứu</h1>
-
-      {/* Thanh điều hướng Tab */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #eee', paddingBottom: '10px' }}>
-        <button 
-          onClick={() => setActiveTab('bills')} 
-          style={{ padding: '8px 16px', background: activeTab === 'bills' ? '#0070f3' : '#eee', color: activeTab === 'bills' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          Quản lý Hóa Đơn ({bills.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('lookup')} 
-          style={{ padding: '8px 16px', background: activeTab === 'lookup' ? '#0070f3' : '#eee', color: activeTab === 'lookup' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          Tra cứu nhanh (Quick Lookup)
-        </button>
-      </div>
-
-      {activeTab === 'bills' && (
-        <>
-          {/* Khu vực nạp liệu hàng loạt */}
-          <div style={{ marginBottom: '20px', padding: '15px', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
-            <h3>Nhập liệu hàng loạt (Bulk Import) & Quản lý Kỳ Cước</h3>
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ marginRight: '10px', fontWeight: 'bold' }}>Kỳ cước (Billing Period):</label>
-              <input
-                type="text"
-                value={currentPeriod}
-                onChange={(e) => setCurrentPeriod(e.target.value)}
-                placeholder="Ví dụ: 2026-09"
-                style={{ padding: '6px', width: '200px' }}
-              />
-            </div>
-            <p style={{ fontSize: '13px', color: '#666' }}>Định dạng mỗi dòng: Mã KH, Tên khách hàng, Số tiền (Hệ thống tự động lọc bỏ các mã trùng nhau trong cùng kỳ)</p>
-            <textarea
-              rows={4}
-              value={batchData}
-              onChange={(e) => setBatchData(e.target.value)}
-              placeholder="PE0123, Nguyễn Văn A, 500000&#10;PE0456, Trần Thị B, 300000"
-              style={{ width: '100%', padding: '8px', marginBottom: '10px', boxSizing: 'border-box' }}
+    <div className="min-h-screen bg-gray-50 p-6 text-gray-800">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* Header & Chọn Kỳ Cước Tháng */}
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-xl shadow-sm gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Quản Lý Hóa Đơn Admin</h1>
+            <p className="text-sm text-gray-500">Hệ thống phân định tự động theo chu kỳ tháng cước.</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium">Kỳ cước tháng:</label>
+            <input 
+              type="month" 
+              value={selectedBillingPeriod}
+              onChange={(e) => setSelectedBillingPeriod(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
-            <button onClick={handleBatchImport} disabled={loading} style={{ padding: '8px 16px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              {loading ? 'Đang xử lý...' : 'Nạp dữ liệu & Lọc trùng'}
-            </button>
           </div>
+        </div>
 
-          {/* Bộ lọc trạng thái */}
-          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-            <button onClick={() => setFilter('all')} style={{ padding: '6px 12px', background: filter === 'all' ? '#0070f3' : '#eee', color: filter === 'all' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Tất cả ({bills.length})</button>
-            <button onClick={() => setFilter('pending')} style={{ padding: '6px 12px', background: filter === 'pending' ? '#0070f3' : '#eee', color: filter === 'pending' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Chờ duyệt ({pendingCount})</button>
-            <button onClick={() => setFilter('completed')} style={{ padding: '6px 12px', background: filter === 'completed' ? '#0070f3' : '#eee', color: filter === 'completed' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Đã hoàn thành ({completedCount})</button>
-            <button onClick={() => setFilter('error')} style={{ padding: '6px 12px', background: filter === 'error' ? '#dc3545' : '#eee', color: filter === 'error' ? '#fff' : '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Lỗi / Đã đóng ({errorCount})</button>
-          </div>
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-gray-200 mb-6">
+          <button
+            onClick={() => setActiveTab('bills')}
+            className={`py-3 px-6 font-semibold text-sm border-b-2 transition-all ${
+              activeTab === 'bills' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Quản Lý & Nạp Hóa Đơn
+          </button>
+          <button
+            onClick={() => setActiveTab('quick_lookup')}
+            className={`py-3 px-6 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${
+              activeTab === 'quick_lookup' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            ⚡ Tra Cứu Nhanh 1 Chạm
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`py-3 px-6 font-semibold text-sm border-b-2 transition-all ${
+              activeTab === 'settings' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Cài Đặt & Hệ Thống
+          </button>
+        </div>
 
-          {/* Bảng danh sách hóa đơn */}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff' }}>
-              <thead>
-                <tr style={{ background: '#f1f1f1', textAlign: 'left' }}>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Mã KH (Code)</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Khách hàng</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Số tiền</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Kỳ cước</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Trạng thái</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Ảnh Bill</th>
-                  <th style={{ padding: '10px', border: '1px solid #ddd' }}>Thao tác nhanh</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBills.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '20px' }}>Không có dữ liệu.</td>
-                  </tr>
-                ) : (
-                  filteredBills.map((inv) => (
-                    <tr key={inv.id} style={{ opacity: inv.status === 'error' ? 0.6 : 1 }}>
-                      <td style={{ padding: '10px', border: '1px solid #ddd', fontWeight: 'bold' }}>{inv.code}</td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>{inv.customer_name}</td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>{Number(inv.amount).toLocaleString()} VNĐ</td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>{inv.billing_period}</td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                        <span style={{ 
-                          color: inv.status === 'completed' ? 'green' : inv.status === 'error' ? 'red' : 'orange', 
-                          fontWeight: 'bold' 
-                        }}>
-                          {inv.status === 'completed' ? 'Đã duyệt' : inv.status === 'error' ? 'Lỗi / Đã đóng' : 'Chờ duyệt'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                        {inv.image_url ? (
-                          <button onClick={() => setSelectedImage(inv.image_url)} style={{ color: '#0070f3', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-                            Xem ảnh
-                          </button>
-                        ) : (
-                          'Chưa có'
-                        )}
-                      </td>
-                      <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                          {inv.status !== 'completed' && (
-                            <button onClick={() => updateStatus(inv.id, 'completed')} style={{ padding: '5px 8px', background: '#28a745', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                              Duyệt
+        {/* TAB 1: QUẢN LÝ & NẠP HÓA ĐƠN */}
+        {activeTab === 'bills' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Cột Trái: Bulk Import thông minh */}
+            <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex flex-col">
+              <h2 className="text-lg font-semibold mb-2">Nạp Dữ Liệu Hàng Loạt (Bulk Import)</h2>
+              <p className="text-xs text-gray-500 mb-3">Dán danh sách mã khách hàng vào đây. Hệ thống sẽ tự động cắt khoảng trắng và lọc bỏ mã trùng lặp.</p>
+              
+              <textarea
+                rows={8}
+                value={rawImportText}
+                onChange={(e) => setRawImportText(e.target.value)}
+                placeholder="PE0123456&#10;PE0789101&#10;..."
+                className="w-full border rounded-lg p-3 text-sm font-mono focus:ring-2 focus:ring-blue-500 outline-none mb-3 resize-none"
+              />
+
+              <button
+                onClick={handleBulkImport}
+                disabled={loading}
+                className="w-full bg-blue-600 text-white font-medium py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {loading ? 'Đang xử lý...' : 'Kiểm tra & Nạp vào hệ thống'}
+              </button>
+
+              {importReport && (
+                <div className="mt-4 p-3 bg-blue-50 text-blue-800 text-xs rounded-lg border border-blue-100 whitespace-pre-line">
+                  {importReport}
+                </div>
+              )}
+            </div>
+
+            {/* Cột Phải: Danh sách hóa đơn trong tháng */}
+            <div className="lg:col-span-2 bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-semibold">Danh Sách Hóa Đơn (Tháng {selectedBillingPeriod})</h2>
+                <span className="text-sm bg-gray-100 px-3 py-1 rounded-full text-gray-600">Tổng: {bills.length}</span>
+              </div>
+
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="p-3">Mã Khách Hàng</th>
+                      <th className="p-3">Trạng Thái</th>
+                      <th className="p-3">Số Tiền</th>
+                      <th className="p-3 text-right">Thao Tác Nhanh</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bills.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="text-center py-8 text-gray-400">Không có hóa đơn nào trong kỳ cước này.</td>
+                      </tr>
+                    ) : (
+                      bills.map((bill) => (
+                        <tr key={bill.id} className="border-b hover:bg-gray-50">
+                          <td className="p-3 font-mono font-medium">{bill.customer_code}</td>
+                          <td className="p-3">
+                            {bill.status === 'pending' && <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded text-xs">Đang chờ</span>}
+                            {bill.status === 'paid' && <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs">Đã đóng</span>}
+                            {bill.status === 'error' && <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs" title={bill.error_reason}>Lỗi ({bill.error_reason || 'Khác'})</span>}
+                          </td>
+                          <td className="p-3">{bill.amount ? bill.amount.toLocaleString() + ' đ' : '---'}</td>
+                          <td className="p-3 text-right space-x-2">
+                            <button
+                              onClick={() => {
+                                setLookupCode(bill.customer_code);
+                                setActiveTab('quick_lookup');
+                              }}
+                              className="text-blue-600 hover:underline text-xs bg-blue-50 px-2 py-1 rounded"
+                            >
+                              Tra cứu
                             </button>
-                          )}
-                          {inv.status !== 'error' && (
-                            <button onClick={() => updateStatus(inv.id, 'error')} style={{ padding: '5px 8px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                            <button
+                              onClick={() => openErrorModal(bill)}
+                              className="text-red-600 hover:underline text-xs bg-red-50 px-2 py-1 rounded"
+                            >
                               Đánh dấu lỗi
                             </button>
-                          )}
-                          {inv.status === 'completed' && (
-                            <button onClick={() => updateStatus(inv.id, 'pending')} style={{ padding: '5px 8px', background: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                              Hoàn tác
-                            </button>
-                          )}
-                          <button onClick={() => handleDeleteBill(inv.id)} style={{ padding: '5px 8px', background: '#333', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                            Xóa
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </>
-      )}
+        )}
 
-      {/* TAB TRA CỨU NHANH */}
-      {activeTab === 'lookup' && (
-        <div style={{ padding: '20px', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <h3>Công cụ Tra cứu Nhanh (Quick Lookup)</h3>
-          <p style={{ fontSize: '14px', color: '#555', marginBottom: '15px' }}>
-            Nhập hoặc dán mã cần tra cứu vào ô bên dưới. Khi bấm nút khu vực, hệ thống sẽ <strong>tự động copy mã vào bộ nhớ tạm</strong> và mở trang tra cứu tương ứng trong tab mới.
-          </p>
-          
-          <div style={{ marginBottom: '20px' }}>
-            <input
-              type="text"
-              placeholder="Nhập hoặc dán mã khách hàng..."
-              value={lookupCode}
-              onChange={(e) => setLookupCode(e.target.value)}
-              style={{ width: '100%', padding: '12px', fontSize: '16px', border: '1px solid #ccc', borderRadius: '4px', boxSizing: 'border-box' }}
-            />
+        {/* TAB 2: TRA CỨU NHANH (QUICK LOOKUP) */}
+        {activeTab === 'quick_lookup' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 max-w-3xl mx-auto">
+            <h2 className="text-xl font-bold mb-2">Trung Tâm Tra Cứu Nhanh 1 Chạm</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Nhập hoặc dán mã hóa đơn bên dưới. Khi bấm vào các khu vực, mã sẽ tự động copy vào bộ nhớ tạm và mở trang tra cứu tương ứng (Phím tắt: <kbd className="bg-gray-100 px-1.5 py-0.5 rounded border">Alt + số</kbd>).
+            </p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Mã Hóa Đơn / Khách Hàng Tập Trung:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={lookupCode}
+                  onChange={(e) => setLookupCode(e.target.value)}
+                  placeholder="Dán mã vào đây (ví dụ: PA01001234567)..."
+                  className="flex-1 border rounded-lg px-4 py-3 font-mono text-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                />
+                <button
+                  onClick={() => setLookupCode('')}
+                  className="px-4 border rounded-lg text-gray-500 hover:bg-gray-100 text-sm"
+                >
+                  Xóa
+                </button>
+              </div>
+            </div>
+
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Chọn Khu Vực Tra Cứu Nhanh:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {PROVIDERS.map((provider, index) => {
+                const isLastUsed = lastSelectedProvider === provider.id;
+                const isChecked = checkedProviders[provider.id];
+
+                return (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleQuickLookupAction(provider)}
+                    className={`flex items-center justify-between p-4 rounded-xl border text-left transition-all ${
+                      isLastUsed 
+                        ? 'border-blue-500 bg-blue-50/50 shadow-sm' 
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium text-sm flex items-center gap-2">
+                        <span className="text-xs bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded">Alt+{index + 1}</span>
+                        {provider.name}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {isLastUsed ? '🌟 Vừa tra cứu gần đây' : 'Click để copy & mở web'}
+                      </div>
+                    </div>
+                    {isChecked && (
+                      <span className="text-green-600 bg-green-100 text-xs px-2 py-1 rounded-full font-medium">✓ Đã check</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            {REGIONS.map((reg, index) => (
-              <button
-                key={index}
-                onClick={() => handleQuickLookupAction(reg.url)}
-                style={{
-                  padding: '12px 15px',
-                  background: '#0070f3',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  textAlign: 'center'
-                }}
-              >
-                {reg.name} ➔
+        {/* TAB 3: CÀI ĐẶT */}
+        {activeTab === 'settings' && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 max-w-xl mx-auto">
+            <h2 className="text-xl font-bold mb-4">Cài Đặt Hệ Thống</h2>
+            <p className="text-sm text-gray-500 mb-4">Quản lý mật khẩu quản trị và cấu hình đồng bộ nâng cao.</p>
+            {/* Khu vực cài đặt mật khẩu hoặc cấu hình khác */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Đổi Mật Khẩu Admin</label>
+                <input type="password" placeholder="Mật khẩu mới" className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+                Lưu Thay Đổi
               </button>
-            ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* MODAL CHỌN LÝ DO LỖI / ĐÃ THANH TOÁN TRƯỚC */}
+      {errorModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-lg">
+            <h3 className="text-lg font-bold mb-2">Đánh Dấu Lỗi Mã: {selectedBillForError?.customer_code}</h3>
+            <p className="text-sm text-gray-500 mb-4">Vui lòng chọn nguyên nhân để ẩn hoặc vô hiệu hóa mã này:</p>
+            
+            <div className="space-y-2 mb-4">
+              {['Đã thanh toán trước', 'Sai mã khách hàng', 'Mã không tồn tại', 'Hệ thống nhà mạng lỗi'].map((reason) => (
+                <label key={reason} className="flex items-center gap-3 p-2 rounded border hover:bg-gray-50 cursor-pointer text-sm">
+                  <input 
+                    type="radio" 
+                    name="errorReason" 
+                    value={reason} 
+                    checked={errorReason === reason} 
+                    onChange={(e) => setErrorReason(e.target.value)} 
+                  />
+                  {reason}
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button 
+                onClick={() => setErrorModalOpen(false)} 
+                className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-100"
+              >
+                Hủy
+              </button>
+              <button 
+                onClick={confirmMarkAsError} 
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+              >
+                Xác Nhận Lỗi
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Modal phóng to ảnh bill */}
-      {selectedImage && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }} onClick={() => setSelectedImage(null)}>
-          <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', maxWidth: '90%' }} onClick={(e) => e.stopPropagation()}>
-            <img src={selectedImage} alt="Bill chuyển khoản" style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }} />
-            <button onClick={() => setSelectedImage(null)} style={{ marginTop: '10px', padding: '6px 12px', background: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Đóng</button>
-          </div>
+      {/* TOAST NOTIFICATION VỚI TÍNH NĂNG HOÀN TÁC (UNDO) */}
+      {toastMessage && (
+        <div className="fixed bottom-5 right-5 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-4 z-50 text-sm animate-bounce">
+          <span>{toastMessage.text}</span>
+          {toastMessage.undoData && (
+            <button 
+              onClick={handleUndo} 
+              className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-medium transition"
+            >
+              Hoàn tác (Undo)
+            </button>
+          )}
         </div>
       )}
     </div>
