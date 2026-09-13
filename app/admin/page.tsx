@@ -55,7 +55,22 @@ export default function AdminPage() {
       setIsAuthenticated(true);
     }
   };
+const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = e.target.files?.[0];
+    if (!uploadedFile) return;
 
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setBatchText(text);
+        if (typeof parseRawText === 'function') {
+          parseRawText(text);
+        }
+      }
+    };
+    reader.readAsText(uploadedFile);
+  };
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.from('settings').select('value').eq('key', 'admin_password').single();
@@ -325,7 +340,15 @@ export default function AdminPage() {
                   />
                 </div>
               </div>
-
+<div style={{ marginBottom: '10px' }}>
+  <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Tải file (CSV/TXT):</label>
+  <input
+    type="file"
+    accept=".csv, .txt"
+    onChange={handleFileUpload}
+    style={{ width: '100%', padding: '6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', backgroundColor: '#f9fafb' }}
+  />
+</div>
               <textarea
                 rows={3}
                 placeholder={`Mã | Tên khách | Số tiền\nPA12345 | Nguyễn Văn A | 250000`}
@@ -376,7 +399,69 @@ export default function AdminPage() {
               />
             </div>
           </div>
+{/* 📦 BẢNG QUẢN LÝ KHO MÃ VÀ BẬT/TẮT SỐNG CHẾT */}
+          <div style={{ backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #d1d5db', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', color: '#111827' }}>📦 Quản Lý Kho Mã Dịch Vụ ({billType.toUpperCase()})</h3>
+              <span style={{ fontSize: '13px', color: '#6b7280' }}>Tổng số: {bills.length} mã</span>
+            </div>
 
+            <div style={{ maxHeight: '350px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
+                <thead style={{ backgroundColor: '#f9fafb', position: 'sticky', top: 0 }}>
+                  <tr>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Mã Đơn</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Tên Khách</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Số Tiền</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb' }}>Kỳ Tháng</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>Trạng Thái Sống/Chết</th>
+                    <th style={{ padding: '10px', borderBottom: '1px solid #e5e7eb', textAlign: 'center' }}>Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bills.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>Không có mã nào trong kho kỳ này.</td>
+                    </tr>
+                  ) : (
+                    bills.map((bill) => (
+                      <tr key={bill.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '10px', fontWeight: 'bold', color: '#2563eb' }}>{bill.code}</td>
+                        <td style={{ padding: '10px' }}>{bill.owner_name}</td>
+                        <td style={{ padding: '10px', color: '#16a34a', fontWeight: 'bold' }}>{bill.amount?.toLocaleString('vi-VN')} đ</td>
+                        <td style={{ padding: '10px' }}>{bill.billing_month}</td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleToggleValid(bill.id, bill.is_valid ?? true)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer',
+                              backgroundColor: bill.is_valid !== false ? '#dcfce7' : '#fee2e2',
+                              color: bill.is_valid !== false ? '#16a34a' : '#dc2626'
+                            }}
+                          >
+                            {bill.is_valid !== false ? '✅ Đang Sống' : '❌ Đã Tắt (Chết)'}
+                          </button>
+                        </td>
+                        <td style={{ padding: '10px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleDeleteBill(bill.id)}
+                            style={{ padding: '4px 8px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                          >
+                            🗑️ Xóa
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
           <h3 style={{ fontSize: '16px', color: '#111827', borderBottom: '2px solid #2563eb', paddingBottom: '4px', marginBottom: '16px' }}>
             ⏳ Đơn Hàng Đang Xử Lý & Chờ Duyệt ({activeBills.length})
           </h3>
