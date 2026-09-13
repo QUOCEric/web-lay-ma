@@ -49,6 +49,15 @@ export default function AdminPage() {
   const [newType, setNewType] = useState('dien');
   const [newPassword, setNewPassword] = useState('');
 
+  // State phục vụ tính năng Check Web / Đối soát nợ
+  const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
+  const [selectedBillForCheck, setSelectedBillForCheck] = useState<Bill | null>(null);
+
+  const handleOpenCheckSystem = (bill: Bill) => {
+    setSelectedBillForCheck(bill);
+    setIsCheckModalOpen(true);
+  };
+
   const checkAuth = async () => {
     const savedAuth = localStorage.getItem('admin_authenticated');
     if (savedAuth === 'true') {
@@ -469,6 +478,14 @@ export default function AdminPage() {
                         </td>
                         <td style={{ padding: '10px', textAlign: 'center' }}>
                           <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                            {/* Nút bấm Check Web đối soát nợ */}
+                            <button
+                              onClick={() => handleOpenCheckSystem(bill)}
+                              style={{ padding: '4px 8px', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                            >
+                              Check Web
+                            </button>
+
                             {bill.status === 'pending' && (
                               <>
                                 <button
@@ -502,6 +519,85 @@ export default function AdminPage() {
           </div>
         </>
       )}
+
+      {/* Cửa sổ Popup / Modal Check Web tích hợp ngay trong trang Admin */}
+      {isCheckModalOpen && selectedBillForCheck && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '10px', width: '900px', maxWidth: '95%', height: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            
+            {/* Header Modal */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>
+                🔍 Đối Soát Nợ: <span style={{ color: '#2563eb' }}>{selectedBillForCheck.code}</span> - {selectedBillForCheck.owner_name} ({selectedBillForCheck.amount?.toLocaleString('vi-VN')}đ)
+              </h3>
+              <button 
+                onClick={() => setIsCheckModalOpen(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Nội dung chia 2 cột: Cột trái copy mã nhanh, Cột phải khung web tra cứu */}
+            <div style={{ display: 'flex', gap: '16px', flex: 1, overflow: 'hidden' }}>
+              
+              {/* Cột trái: Thao tác nhanh */}
+              <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '12px', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '14px' }}>Thao tác nhanh</h4>
+                <div style={{ fontSize: '13px' }}>
+                  <p style={{ margin: '4px 0' }}><b>Mã cần check:</b></p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <input type="text" readOnly value={selectedBillForCheck.code} style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1', backgroundColor: '#fff' }} />
+                    <button onClick={() => handleCopyCode(selectedBillForCheck.code)} style={{ padding: '4px 8px', cursor: 'pointer' }}>📋</button>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                  <b>Hướng dẫn:</b><br />
+                  1. Copy mã hóa đơn ở trên.<br />
+                  2. Dán vào trang tra cứu bên cạnh.<br />
+                  3. Kiểm tra xem trạng thái nợ tháng <b>{selectedBillForCheck.billing_month}</b> đã về 0đ hay chưa.<br />
+                  4. Đóng popup và bấm <b>Duyệt</b> hoặc <b>Từ chối</b>.
+                </div>
+
+                <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button 
+                    onClick={() => setIsCheckModalOpen(false)}
+                    style={{ padding: '10px', backgroundColor: '#e5e7eb', color: '#334155', textAlign: 'center', borderRadius: '6px', border: 'none', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}
+                  >
+                    Đóng Cửa Sổ
+                  </button>
+                  <a 
+                    href={
+                      selectedBillForCheck.type === 'dien' ? 'https://cskh.evn.com.vn' : 
+                      selectedBillForCheck.type === 'nuoc' ? 'https://cskh.watergov.vn' : 'https://viettel.vn'
+                    } 
+                    target="_blank" 
+                    rel="noreferrer"
+                    style={{ padding: '10px', backgroundColor: '#2563eb', color: '#fff', textAlign: 'center', borderRadius: '6px', textDecoration: 'none', fontWeight: 'bold', fontSize: '13px' }}
+                  >
+                    🌐 Mở Web Rộng (Tab Mới)
+                  </a>
+                </div>
+              </div>
+
+              {/* Cột phải: Khung nhúng trang web tra cứu trực tiếp */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                <iframe 
+                  src={
+                    selectedBillForCheck.type === 'dien' ? 'https://cskh.evn.com.vn' : 
+                    selectedBillForCheck.type === 'nuoc' ? 'https://cskh.watergov.vn' : 'https://viettel.vn'
+                  }
+                  title="Trang Tra Cứu"
+                  style={{ width: '100%', height: '100%', border: 'none' }}
+                />
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
