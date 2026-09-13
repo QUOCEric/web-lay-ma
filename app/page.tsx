@@ -15,7 +15,6 @@ interface Bill {
   type?: string;
   amount?: number;
   owner_name?: string;
-  billing_month?: string;
   is_valid?: boolean;
 }
 
@@ -24,14 +23,13 @@ export default function HomePage() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Lưu ID của đơn đang được người này thao tác gửi bill
-  const [activeActionBillId, setActiveActionBillId] = useState<number | null>(null);
+  // Lưu ID của dòng đang mở khung chọn file gửi bill
+  const [uploadingId, setUploadingId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const fetchAvailableBills = async () => {
     setLoading(true);
-    // Lấy tất cả các đơn hợp lệ (is_valid = true) theo loại dịch vụ
     const { data, error } = await supabase
       .from('bills')
       .select('*')
@@ -47,12 +45,11 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchAvailableBills();
-    setActiveActionBillId(null);
+    setUploadingId(null);
     setFile(null);
 
-    // Lắng nghe realtime từ Supabase để tự động cập nhật khi Admin duyệt/xóa/thêm hoặc người khác khóa đơn
     const channel = supabase
-      .channel('client_realtime_bills')
+      .channel('client_table_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'bills' }, () => {
         fetchAvailableBills();
       })
@@ -68,48 +65,42 @@ export default function HomePage() {
     alert(`Đã copy mã: ${code}`);
   };
 
-  // Bước 1: Khách bấm "Chọn & Khóa đơn" để bắt đầu thanh toán/gửi bill
-  const handleLockAndStart = async (bill: Bill) => {
-    // Cập nhật trạng thái trong CSDL thành 'processing' để khóa đơn tránh người khác cướp đơn
+  // Khách bấm thao tác gửi bill -> Khóa đơn tạm thời thành 'processing'
+  const handleStartUpload = async (bill: Bill) => {
     const { error } = await supabase
       .from('bills')
       .update({ status: 'processing' })
       .eq('id', bill.id);
 
     if (error) {
-      alert('Đơn này có thể đã được người khác thao tác, vui lòng chọn đơn khác!');
+      alert('Đơn này đang được người khác thao tác, vui lòng chọn đơn khác!');
       fetchAvailableBills();
       return;
     }
 
     navigator.clipboard.writeText(bill.code);
-    setActiveActionBillId(bill.id);
+    setUploadingId(bill.id);
     setFile(null);
   };
 
-  // Khách bấm hủy thao tác (mở khóa lại đơn về trạng thái active)
-  const handleCancelAction = async (billId: number) => {
-    const { error } = await supabase
+  const handleCancelUpload = async (billId: number) => {
+    await supabase
       .from('bills')
       .update({ status: 'active' })
       .eq('id', billId);
 
-    if (!error) {
-      setActiveActionBillId(null);
-      setFile(null);
-      fetchAvailableBills();
-    }
+    setUploadingId(null);
+    setFile(null);
+    fetchAvailableBills();
   };
 
-  // Bước 2: Khách gửi ảnh bill chuyển khoản lên để admin duyệt
-  const handleUploadBillSubmit = async (bill: Bill) => {
+  const handleSubmitBill = async (bill: Bill) => {
     if (!file) {
-      alert('Vui lòng chọn ảnh chụp biên lai chuyển khoản!');
+      alert('Vui lòng chọn ảnh bill chuyển khoản!');
       return;
     }
 
     setUploading(true);
-
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -126,7 +117,7 @@ export default function HomePage() {
 
       const imageUrl = publicUrlData.publicUrl;
 
-      // Cập nhật URL ảnh và đổi trạng thái thành 'pending' (chờ admin duyệt)
+      // Cập nhật bill sang trạng thái pending (chờ admin duyệt)
       const { error: updateError } = await supabase
         .from('bills')
         .update({
@@ -137,7 +128,7 @@ export default function HomePage() {
 
       if (updateError) throw updateError;
 
-      // Lưu vết vào bảng lịch sử
+      // Lưu lịch sử
       await supabase.from('bill_history').insert({
         bill_id: bill.id,
         code: bill.code,
@@ -145,211 +136,152 @@ export default function HomePage() {
         image_url: imageUrl
       });
 
-      alert('🎉 Gửi bill thành công! Vui lòng chờ Admin kiểm tra và duyệt đơn.');
-      setActiveActionBillId(null);
+      alert('🎉 Gửi bill thành công! Vui lòng chờ Admin duyệt.');
+      setUploadingId(null);
       setFile(null);
       fetchAvailableBills();
     } catch (err: any) {
-      alert('Lỗi upload bill: ' + (err.message || 'Không thể tải ảnh lên'));
+      alert('Lỗi: ' + (err.message || 'Không thể tải ảnh lên'));
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto', fontFamily: 'sans-serif' }}>
+    <div style={{ padding: '30px', maxWidth: '1100px', margin: '0 auto', fontFamily: 'sans-serif', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
       <div style={{ textAlign: 'center', marginBottom: '24px' }}>
         <h1 style={{ color: '#111827', fontSize: '24px', marginBottom: '8px' }}>⚡ Tra Cứu & Thanh Toán Hóa Đơn</h1>
-        <p style={{ color: '#6b7280', margin: 0, fontSize: '14px' }}>
-          Danh sách hóa đơn được cập nhật tự động theo thời gian thực
-        </p>
+        <p style={{ color: '#6b7280', fontSize: '14px' }}>Chọn dịch vụ và thực hiện tải ảnh bill trực tiếp trên danh sách bên dưới</p>
       </div>
 
-      {/* Bộ lọc dịch vụ */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', maxWidth: '500px', margin: '0 auto 24px auto' }}>
-        <button
-          onClick={() => setBillType('dien')}
-          style={{
-            flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
-            backgroundColor: billType === 'dien' ? '#2563eb' : '#f3f4f6',
-            color: billType === 'dien' ? '#ffffff' : '#374151',
-            fontWeight: 'bold', cursor: 'pointer'
-          }}
-        >
-          ⚡ Điện
-        </button>
-        <button
-          onClick={() => setBillType('nuoc')}
-          style={{
-            flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
-            backgroundColor: billType === 'nuoc' ? '#2563eb' : '#f3f4f6',
-            color: billType === 'nuoc' ? '#ffffff' : '#374151',
-            fontWeight: 'bold', cursor: 'pointer'
-          }}
-        >
-          💧 Nước
-        </button>
-        <button
-          onClick={() => setBillType('internet')}
-          style={{
-            flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
-            backgroundColor: billType === 'internet' ? '#2563eb' : '#f3f4f6',
-            color: billType === 'internet' ? '#ffffff' : '#374151',
-            fontWeight: 'bold', cursor: 'pointer'
-          }}
-        >
-          🌐 Internet
-        </button>
+      {/* Nút chọn loại dịch vụ */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px auto' }}>
+        {['dien', 'nuoc', 'internet'].map((type) => (
+          <button
+            key={type}
+            onClick={() => setBillType(type)}
+            style={{
+              flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
+              backgroundColor: billType === type ? '#2563eb' : '#ffffff',
+              color: billType === type ? '#ffffff' : '#374151',
+              fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+              textTransform: 'uppercase'
+            }}
+          >
+            {type === 'dien' ? '⚡ Điện' : type === 'nuoc' ? '💧 Nước' : '🌐 Internet'}
+          </button>
+        ))}
       </div>
 
-      <h3 style={{ fontSize: '16px', color: '#374151', marginBottom: '16px' }}>
-        📋 Danh sách hóa đơn ({bills.length}):
-      </h3>
-
-      {loading ? (
-        <p style={{ textAlign: 'center', color: '#6b7280' }}>⏳ Đang tải dữ liệu...</p>
-      ) : bills.length === 0 ? (
-        <p style={{ textAlign: 'center', color: '#ef4444', fontWeight: 'bold', padding: '30px', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-          Hiện tại chưa có mã hóa đơn nào trong hệ thống.
-        </p>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-          {bills.map((bill) => {
-            const isProcessingByOthers = bill.status === 'processing' && activeActionBillId !== bill.id;
-            const isProcessingByMe = activeActionBillId === bill.id;
-
-            return (
-              <div
-                key={bill.id}
-                style={{
-                  backgroundColor: '#ffffff',
-                  border: isProcessingByMe ? '2px solid #2563eb' : bill.status === 'pending' ? '2px solid #f59e0b' : '1px solid #d1d5db',
-                  borderRadius: '10px',
-                  padding: '16px',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  opacity: isProcessingByOthers ? 0.7 : 1
-                }}
-              >
-                {/* Thông tin hiển thị đầy đủ của đơn */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '12px', color: '#6b7280' }}>ID: #{bill.id}</span>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontWeight: 'bold',
-                        backgroundColor:
-                          bill.status === 'active' ? '#dcfce7' :
-                          bill.status === 'processing' ? '#fef3c7' :
-                          bill.status === 'pending' ? '#ffedd5' : '#d1fae5',
-                        color:
-                          bill.status === 'active' ? '#166534' :
-                          bill.status === 'processing' ? '#b45309' :
-                          bill.status === 'pending' ? '#c2410c' : '#065f46'
-                      }}
-                    >
-                      {bill.status === 'active' && 'Sẵn sàng'}
-                      {bill.status === 'processing' && (isProcessingByMe ? 'Đang thao tác của bạn' : 'Đang có người xử lý 🔒')}
-                      {bill.status === 'pending' && 'Đã gửi bill chờ duyệt ⏳'}
-                      {bill.status === 'used' && 'Đã hoàn thành ✅'}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827' }}>{bill.code}</span>
-                    <button
-                      onClick={() => handleCopyCode(bill.code)}
-                      style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      📋 Copy Mã
-                    </button>
-                  </div>
-
-                  <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '14px' }}>
-                    <div style={{ marginBottom: '4px' }}>👤 <b>Khách hàng:</b> {bill.owner_name || 'Chưa cập nhật'}</div>
-                    <div style={{ color: '#0f766e', fontWeight: 'bold' }}>
-                      💵 <b>Số tiền:</b> {bill.amount ? `${bill.amount.toLocaleString('vi-VN')} đ` : '0 đ'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Khu vực tương tác dựa trên trạng thái đơn */}
-                <div>
-                  {bill.status === 'used' ? (
-                    <div style={{ textAlign: 'center', color: '#16a34a', fontWeight: 'bold', fontSize: '13px', padding: '8px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
-                      ✅ Đơn đã được Admin duyệt hoàn tất
-                    </div>
-                  ) : bill.status === 'pending' ? (
-                    <div style={{ textAlign: 'center', color: '#ea580c', fontSize: '13px', padding: '8px', backgroundColor: '#fff7ed', borderRadius: '6px' }}>
-                      ⏳ Đã gửi bill, đang chờ Admin xét duyệt...
-                    </div>
-                  ) : isProcessingByOthers ? (
-                    <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '13px', padding: '8px', fontStyle: 'italic' }}>
-                      🔒 Đang được người khác thao tác
-                    </div>
-                  ) : isProcessingByMe ? (
-                    /* Form tải ảnh bill khi chính mình đang khóa đơn này */
-                    <div style={{ backgroundColor: '#eff6ff', padding: '10px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#1e3a8a' }}>
-                        📸 Tải ảnh bill chuyển khoản:
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => setFile(e.target.files?.[0] || null)}
-                        style={{ width: '100%', fontSize: '11px', marginBottom: '8px' }}
-                      />
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          onClick={() => handleUploadBillSubmit(bill)}
-                          disabled={uploading || !file}
-                          style={{
-                            flex: 1, padding: '6px',
-                            backgroundColor: file ? '#16a34a' : '#9ca3af',
-                            color: '#fff', border: 'none', borderRadius: '4px',
-                            fontWeight: 'bold', fontSize: '12px',
-                            cursor: file ? 'pointer' : 'not-allowed'
-                          }}
-                        >
-                          {uploading ? 'Đang gửi...' : '📤 Xác nhận Gửi'}
-                        </button>
-                        <button
-                          onClick={() => handleCancelAction(bill.id)}
-                          style={{
-                            padding: '6px 10px', backgroundColor: '#ef4444',
-                            color: '#fff', border: 'none', borderRadius: '4px',
-                            fontSize: '12px', cursor: 'pointer'
-                          }}
-                        >
-                          Hủy
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Nút ban đầu để khóa đơn và mở khung gửi bill */
-                    <button
-                      onClick={() => handleLockAndStart(bill)}
-                      style={{
-                        width: '100%', padding: '10px',
-                        backgroundColor: '#2563eb', color: '#ffffff',
-                        border: 'none', borderRadius: '6px',
-                        fontWeight: 'bold', fontSize: '13px', cursor: 'pointer'
-                      }}
-                    >
-                      👉 Chọn & Gửi Bill Thanh Toán
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {/* Bảng danh sách mã */}
+      <div style={{ backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '20px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f3f4f6' }}>
+          <h3 style={{ fontSize: '16px', color: '#1f2937', margin: 0 }}>
+            📦 Quản Lý Kho Mã Dịch Vụ ({billType.toUpperCase()})
+          </h3>
+          <span style={{ fontSize: '13px', color: '#6b7280' }}>Tổng số: {bills.length} mã</span>
         </div>
-      )}
+
+        {loading ? (
+          <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>⏳ Đang tải dữ liệu...</p>
+        ) : bills.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#ef4444', fontWeight: 'bold', padding: '30px' }}>
+            Hiện tại không có mã hóa đơn nào.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8fafc', color: '#475569', borderBottom: '2px solid #e2e8f0' }}>
+                  <th style={{ padding: '12px' }}>ID</th>
+                  <th style={{ padding: '12px' }}>Mã Hóa Đơn</th>
+                  <th style={{ padding: '12px' }}>Khách Hàng</th>
+                  <th style={{ padding: '12px' }}>Số Tiền</th>
+                  <th style={{ padding: '12px' }}>Trạng Thái</th>
+                  <th style={{ padding: '12px', textAlign: 'center' }}>Hành Động Gửi Bill</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bills.map((bill) => {
+                  const isProcessingByOthers = bill.status === 'processing' && uploadingId !== bill.id;
+                  const isUploadingThis = uploadingId === bill.id;
+
+                  return (
+                    <tr key={bill.id} style={{ borderBottom: '1px solid #f1f5f9', opacity: isProcessingByOthers ? 0.6 : 1 }}>
+                      <td style={{ padding: '12px', color: '#64748b' }}>#{bill.id}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#0f172a' }}>
+                        {bill.code}{' '}
+                        <button
+                          onClick={() => handleCopyCode(bill.code)}
+                          style={{ marginLeft: '6px', padding: '2px 6px', fontSize: '11px', cursor: 'pointer', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f8fafc' }}
+                        >
+                          📋
+                        </button>
+                      </td>
+                      <td style={{ padding: '12px', color: '#334155' }}>{bill.owner_name || 'Chưa có'}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold', color: '#0d9488' }}>
+                        {bill.amount ? `${bill.amount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{
+                          padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold',
+                          backgroundColor: bill.status === 'active' ? '#dcfce7' : bill.status === 'processing' ? '#fef3c7' : bill.status === 'pending' ? '#ffedd5' : '#d1fae5',
+                          color: bill.status === 'active' ? '#166534' : bill.status === 'processing' ? '#b45309' : bill.status === 'pending' ? '#c2410c' : '#065f46'
+                        }}>
+                          {bill.status === 'active' && 'Sẵn sàng'}
+                          {bill.status === 'processing' && (isUploadingThis ? 'Đang thao tác...' : 'Đang có người xử lý 🔒')}
+                          {bill.status === 'pending' && 'Đã gửi Bill chờ duyệt ⏳'}
+                          {bill.status === 'used' && 'Đã hoàn thành ✅'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        {bill.status === 'used' ? (
+                          <span style={{ color: '#16a34a', fontWeight: 'bold', fontSize: '13px' }}>Đã hoàn tất</span>
+                        ) : bill.status === 'pending' ? (
+                          <span style={{ color: '#ea580c', fontSize: '13px' }}>Chờ Admin duyệt</span>
+                        ) : isProcessingByOthers ? (
+                          <span style={{ color: '#9ca3af', fontSize: '13px' }}>Đang bị khóa</span>
+                        ) : isUploadingThis ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => setFile(e.target.files?.[0] || null)}
+                              style={{ fontSize: '11px', width: '180px' }}
+                            />
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              <button
+                                onClick={() => handleSubmitBill(bill)}
+                                disabled={uploading || !file}
+                                style={{ padding: '4px 8px', backgroundColor: file ? '#16a34a' : '#9ca3af', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}
+                              >
+                                {uploading ? 'Đang gửi...' : 'Gửi'}
+                              </button>
+                              <button
+                                onClick={() => handleCancelUpload(bill.id)}
+                                style={{ padding: '4px 8px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleStartUpload(bill)}
+                            style={{ padding: '6px 12px', backgroundColor: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                          >
+                            📤 Gửi Bill
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
