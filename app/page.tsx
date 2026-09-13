@@ -15,6 +15,8 @@ interface Bill {
   type?: string;
   amount?: number;
   owner_name?: string;
+  billing_month?: string;
+  is_valid?: boolean;
 }
 
 export default function HomePage() {
@@ -27,12 +29,13 @@ export default function HomePage() {
 
   const fetchAvailableBills = async () => {
     setLoading(true);
-    // Chỉ lấy các đơn có status = 'active' (khi admin duyệt 'used', đơn sẽ tự động biến mất bên người dùng)
+    // Chỉ lấy mã active và bắt buộc là mã sống (is_valid = true)
     const { data, error } = await supabase
       .from('bills')
       .select('*')
       .eq('type', billType)
       .eq('status', 'active')
+      .eq('is_valid', true)
       .order('id', { ascending: true });
 
     if (!error && data) {
@@ -133,7 +136,7 @@ export default function HomePage() {
         </p>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', maxWidth: '400px', margin: '0 auto 24px auto' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', maxWidth: '500px', margin: '0 auto 24px auto' }}>
         <button
           onClick={() => setBillType('dien')}
           style={{
@@ -148,7 +151,7 @@ export default function HomePage() {
             cursor: 'pointer'
           }}
         >
-          ⚡ Hóa Đơn Điện
+          ⚡ Điện
         </button>
         <button
           onClick={() => setBillType('nuoc')}
@@ -164,7 +167,23 @@ export default function HomePage() {
             cursor: 'pointer'
           }}
         >
-          💧 Hóa Đơn Nước
+          💧 Nước
+        </button>
+        <button
+          onClick={() => setBillType('internet')}
+          style={{
+            flex: 1,
+            padding: '12px',
+            borderRadius: '8px',
+            border: 'none',
+            backgroundColor: billType === 'internet' ? '#2563eb' : '#f3f4f6',
+            color: billType === 'internet' ? '#ffffff' : '#374151',
+            fontWeight: 'bold',
+            fontSize: '15px',
+            cursor: 'pointer'
+          }}
+        >
+          🌐 Internet
         </button>
       </div>
 
