@@ -29,12 +29,10 @@ export default function HomePage() {
 
   const fetchAvailableBills = async () => {
     setLoading(true);
-    // Chỉ lấy mã active và bắt buộc là mã sống (is_valid = true)
     const { data, error } = await supabase
       .from('bills')
       .select('*')
       .eq('type', billType)
-      .eq('status', 'active')
       .eq('is_valid', true)
       .order('id', { ascending: true });
 
@@ -42,6 +40,35 @@ export default function HomePage() {
       setBills(data);
     }
     setLoading(false);
+  };
+
+  const handleCopyAndLockBill = async (billId: string, textToCopy: string) => {
+    const { error } = await supabase
+      .from('bills')
+      .update({ status: 'processing' })
+      .eq('id', billId);
+
+    if (error) {
+      alert('Không thể khóa đơn, có thể đơn đã được người khác lấy!');
+      return;
+    }
+
+    navigator.clipboard.writeText(textToCopy);
+    alert('Đã sao chép và khóa đơn thành công!');
+    fetchAvailableBills();
+  };
+
+  const handleCancelBill = async (billId: string) => {
+    const { error } = await supabase
+      .from('bills')
+      .update({ status: 'pending' })
+      .eq('id', billId);
+
+    if (error) {
+      alert('Không thể hủy đơn, vui lòng thử lại!');
+    } else {
+      fetchAvailableBills();
+    }
   };
 
   useEffect(() => {
@@ -223,48 +250,102 @@ export default function HomePage() {
                   }}
                 >
                   <div>
-                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Mã Đơn</div>
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#2563eb' }}>{bill.code}</span>
+                    <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Mã đơn: #{bill.id}</div>
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#111827' }}>{bill.code}</span>
                       <button
                         onClick={() => handleCopyCode(bill.code)}
                         title="Copy mã đơn"
-                        style={{ padding: '2px 6px', fontSize: '11px', backgroundColor: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer' }}
+                        style={{ padding: '2px 6px', fontSize: '11px', backgroundColor: '#e5e7eb', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                       >
                         📋
                       </button>
                     </div>
-
-                    <div style={{ backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', fontSize: '13px', textAlign: 'left', marginBottom: '12px' }}>
-                      {bill.owner_name && (
-                        <div style={{ marginBottom: '4px' }}>👤 {bill.owner_name}</div>
-                      )}
-                      {bill.amount && bill.amount > 0 ? (
-                        <div style={{ color: '#16a34a', fontWeight: 'bold' }}>
-                          💵 {bill.amount.toLocaleString('vi-VN')} VNĐ
-                        </div>
-                      ) : (
-                        <div style={{ color: '#9ca3af' }}>💵 Chưa có giá</div>
-                      )}
-                    </div>
                   </div>
 
-                  <button
-                    onClick={() => handleSelectBill(bill)}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      backgroundColor: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontWeight: 'bold',
-                      fontSize: '14px',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    👉 Chọn Mã Này
-                  </button>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '8px', borderRadius: '6px', marginBottom: '12px' }}>
+                    {bill.owner_name && (
+                      <div style={{ marginBottom: '4px' }}>👤 {bill.owner_name}</div>
+                    )}
+                    {bill.amount && bill.amount > 0 ? (
+                      <div style={{ color: '#16344a', fontWeight: 'bold' }}>
+                        💵 {bill.amount.toLocaleString('vi-VN')} VNĐ
+                      </div>
+                    ) : (
+                      <div style={{ color: '#9ca3af' }}>💵 Chưa có giá</div>
+                    )}
+                  </div>
+
+                  {bill.status === 'processing' ? (
+                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                      <button
+                        disabled
+                        style={{
+                          flex: 2,
+                          padding: '10px',
+                          backgroundColor: '#9ca3af',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: 'bold',
+                          fontSize: '14px',
+                          cursor: 'not-allowed',
+                        }}
+                      >
+                        ⏳ Đang xử lý
+                      </button>
+                      <button
+                        onClick={() => handleCancelBill(String(bill.id))}
+                        style={{
+                          flex: 1,
+                          padding: '10px',
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontWeight: 'bold',
+                          fontSize: '14px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ❌ Hủy
+                      </button>
+                    </div>
+                  ) : bill.status === 'completed' ? (
+                    <button
+                      disabled
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        backgroundColor: '#10b981',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        cursor: 'not-allowed',
+                      }}
+                    >
+                      ✅ Đã hoàn thành
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleCopyAndLockBill(String(bill.id), bill.code)}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        backgroundColor: '#16344a',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      👉 Chọn Mã Này
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
